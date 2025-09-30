@@ -1,0 +1,32 @@
+services:
+  crazy-phonetts-backend:
+    build: ./backend
+    container_name: crazy-phonetts-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/output:/app/output
+      - crazy_phonetts_library:/app/uploads/library
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  crazy-phonetts-frontend:
+    build: ./frontend
+    container_name: crazy-phonetts-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - crazy-phonetts-backend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+
+volumes:
+  crazy_phonetts_uploads:
+  crazy_phonetts_output:
+  crazy_phonetts_library:
