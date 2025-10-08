@@ -1,9 +1,41 @@
-fastapi
-uvicorn[standard]
-python-multipart
-pydantic
-pydub
-librosa
-aiofiles
-azure-cognitiveservices-speech
-requests
+# Web Framework e Server
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+
+# File Upload e Form Handling
+python-multipart>=0.0.6
+pydantic>=2.5.0
+
+# Audio Processing
+pydub>=0.25.1
+librosa>=0.10.1
+
+# Azure Cognitive Services
+azure-cognitiveservices-speech>=1.34.0
+
+# File I/O Asincrono
+aiofiles>=23.2.0
+
+# HTTP Client
+requests>=2.31.0
+
+# Date/Time Utilities (incluso in Python standard, ma per compatibilità)
+# datetime - built-in module
+
+# JSON handling (built-in, ma per compatibilità)
+# json - built-in module
+
+# Sistema operativo e file system
+# os, shutil, tempfile - built-in modules
+
+# UUID generation
+# uuid - built-in module
+
+# Logging
+# logging - built-in module
+
+# Concorrenza
+# asyncio, concurrent.futures - built-in modules
+
+# HTML escaping
+# html - built-in module

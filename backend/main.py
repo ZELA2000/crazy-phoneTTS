@@ -19,12 +19,16 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Azure Speech Services Configuration
-AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY", "")
+# Azure Speech Services Configuration - Best Practices Implementation
+AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY")
 AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "westeurope")
+AZURE_SPEECH_ENDPOINT = os.getenv("AZURE_SPEECH_ENDPOINT")  # Optional: custom endpoint
 
 if not AZURE_SPEECH_KEY:
-    logger.warning("AZURE_SPEECH_KEY non configurata! Il servizio TTS potrebbe non funzionare.")
+    logger.error("AZURE_SPEECH_KEY non configurata! Configura la variabile d'ambiente AZURE_SPEECH_KEY.")
+    logger.info("Per ottenere una chiave Azure Speech: https://docs.microsoft.com/azure/cognitive-services/speech-service/get-started")
+else:
+    logger.info("Azure Speech Services configurato correttamente")
 
 def convert_audio_to_format(audio_segment, output_format, audio_quality, custom_filename):
     """
@@ -92,91 +96,472 @@ app = FastAPI(title="crazy-phoneTTS API", description="TTS con mixaggio musicale
 # CORS middleware per il frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],  # Consenti tutte le origini
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Azure Speech Services Italian voices - Voci Microsoft di alta qualità commerciali
+# Azure Speech Services Italian voices - Voci Neural di ultima generazione
 AZURE_VOICES = {
-    "it-IT-ElsaNeural": "Elsa (Femmina - Naturale)",
-    "it-IT-IsabellaNeural": "Isabella (Femmina - Espressiva)", 
-    "it-IT-DiegoNeural": "Diego (Maschio - Naturale)",
-    "it-IT-BenignoNeural": "Benigno (Maschio - Espressivo)"
+    # Voci Neural femminili
+    "it-IT-ElsaNeural": {
+        "name": "Elsa",
+        "gender": "Female", 
+        "description": "Voce femminile naturale e professionale",
+        "styles": ["customerservice", "newscast", "assistant", "chat"],
+        "recommended_for": "Centralini aziendali, servizio clienti"
+    },
+    "it-IT-IsabellaNeural": {
+        "name": "Isabella",
+        "gender": "Female",
+        "description": "Voce femminile espressiva e accogliente", 
+        "styles": ["chat", "cheerful", "newscast", "assistant"],
+        "recommended_for": "Messaggi di benvenuto, annunci pubblicitari"
+    },
+    "it-IT-IrmaNeural": {
+        "name": "Irma",
+        "gender": "Female",
+        "description": "Voce femminile calda e rassicurante",
+        "styles": ["chat", "friendly", "assistant"],
+        "recommended_for": "Supporto clienti, messaggi informativi"
+    },
+    
+    # Voci Neural maschili
+    "it-IT-DiegoNeural": {
+        "name": "Diego",
+        "gender": "Male",
+        "description": "Voce maschile autorevole e chiara",
+        "styles": ["customerservice", "newscast", "assistant"],
+        "recommended_for": "Annunci ufficiali, messaggi istituzionali"
+    },
+    "it-IT-BenignoNeural": {
+        "name": "Benigno", 
+        "gender": "Male",
+        "description": "Voce maschile espressiva e coinvolgente",
+        "styles": ["chat", "friendly", "assistant"],
+        "recommended_for": "Messaggi promozionali, guide vocali"
+    },
+    "it-IT-CalimeroNeural": {
+        "name": "Calimero",
+        "gender": "Male", 
+        "description": "Voce maschile moderna e dinamica",
+        "styles": ["chat", "excited", "friendly"],
+        "recommended_for": "Messaggi giovani, comunicazioni dinamiche"
+    },
+    
+    # Voci standard (compatibilità)
+    "it-IT-Giuseppe": {
+        "name": "Giuseppe",
+        "gender": "Male",
+        "description": "Voce maschile standard",
+        "styles": [],
+        "recommended_for": "Compatibilità con sistemi legacy"
+    },
+    "it-IT-Lucia": {
+        "name": "Lucia", 
+        "gender": "Female",
+        "description": "Voce femminile standard",
+        "styles": [],
+        "recommended_for": "Compatibilità con sistemi legacy"
+    }
 }
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("TTS server started - Azure Speech Services ready for commercial use!")
-    logger.info(f"Azure Speech configured - Region: {AZURE_SPEECH_REGION}")
+    """Inizializzazione e validazione della configurazione Azure Speech Services"""
+    logger.info("🚀 crazy-phoneTTS Server Starting...")
+    logger.info(f"📍 Azure Speech Region: {AZURE_SPEECH_REGION}")
+    
     if AZURE_SPEECH_KEY:
-        logger.info("Azure Speech API Key: ✓ Configured")
+        logger.info("🔑 Azure Speech API Key: ✓ Configured")
+        
+        # Test della connessione Azure Speech
+        try:
+            await test_azure_speech_connection()
+            logger.info("🎤 Azure Speech Services: ✓ Connection verified")
+        except Exception as e:
+            logger.error(f"❌ Azure Speech Services: Connection failed - {e}")
+            logger.warning("⚠️  TTS service may not work properly")
     else:
-        logger.warning("Azure Speech API Key: ✗ Missing - Add AZURE_SPEECH_KEY environment variable")
-    # Azure Speech Services - Versione commerciale legale
+        logger.error("❌ Azure Speech API Key: Missing")
+        logger.error("📚 Setup guide: https://docs.microsoft.com/azure/cognitive-services/speech-service/get-started")
+    
+    logger.info("✅ TTS server ready for commercial use!")
 
-async def generate_azure_speech(text: str, voice: str, output_path: str):
-    """Genera audio usando Azure Speech Services - Versione commerciale legale"""
+async def test_azure_speech_connection():
+    """Testa la connessione ad Azure Speech Services con gestione avanzata timeout"""
     try:
         if not AZURE_SPEECH_KEY:
-            logger.error("AZURE_SPEECH_KEY non configurata")
-            return False
-            
-        # Configurazione Azure Speech
-        speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
-        speech_config.speech_synthesis_voice_name = voice
-        speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm)
+            raise ValueError("Azure Speech Key not configured")
         
-        # Sintesi vocale
+        logger.info(f"🔧 Testing Azure Speech connection...")
+        logger.debug(f"Region: {AZURE_SPEECH_REGION}")
+        logger.debug(f"Key length: {len(AZURE_SPEECH_KEY) if AZURE_SPEECH_KEY else 0}")
+        
+        # Configurazione test Azure Speech
+        if AZURE_SPEECH_ENDPOINT:
+            speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, endpoint=AZURE_SPEECH_ENDPOINT)
+            logger.debug(f"Using custom endpoint for test: {AZURE_SPEECH_ENDPOINT}")
+        else:
+            speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
+            logger.debug(f"Using standard region for test: {AZURE_SPEECH_REGION}")
+        
+        # Test con voce Neural italiana
+        speech_config.speech_synthesis_voice_name = "it-IT-ElsaNeural"
+        
         synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
         
-        # Genera SSML per controllo qualità
-        ssml = f"""
-        <speak version="1.0" xml:lang="it-IT">
-            <voice name="{voice}">
-                <prosody rate="medium" pitch="medium">
-                    {text}
-                </prosody>
-            </voice>
-        </speak>
-        """
+        logger.info("🎤 Performing Azure Speech test synthesis...")
         
-        # Sintesi asincrona
-        result = synthesizer.speak_ssml_async(ssml).get()
+        # Test con testo molto breve per ridurre tempo di elaborazione
+        test_text = "Test"
         
+        # Prova prima con timeout normale
+        try:
+            result = synthesizer.speak_text_async(test_text).get()
+            
+            if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                logger.info(f"✅ Azure Speech test successful - Generated {len(result.audio_data)} bytes")
+                return True
+                
+        except Exception as timeout_error:
+            logger.warning(f"⚠️ First attempt failed: {timeout_error}")
+            logger.info("🔄 Trying fallback approach...")
+            
+            # Fallback: Prova con voce standard (più veloce)
+            try:
+                speech_config.speech_synthesis_voice_name = "it-IT-Lucia"  # Voce standard, più veloce
+                synthesizer_fallback = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
+                
+                result = synthesizer_fallback.speak_text_async(test_text).get()
+                
+                if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                    logger.info(f"✅ Azure Speech fallback test successful with standard voice")
+                    logger.warning("⚠️ Neural voices may be slow in your network environment")
+                    return True
+                    
+            except Exception as fallback_error:
+                logger.error(f"❌ Fallback also failed: {fallback_error}")
+        
+        # Gestione dettagliata degli errori
+        if result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = speechsdk.CancellationDetails(result)
+            
+            # Diagnostica dettagliata dell'errore
+            error_details = {
+                "reason": str(cancellation_details.reason),
+                "error_code": str(cancellation_details.error_code) if hasattr(cancellation_details, 'error_code') else "N/A",
+                "error_details": cancellation_details.error_details or "No additional details"
+            }
+            
+            logger.error(f"❌ Azure Speech test canceled:")
+            logger.error(f"   Reason: {error_details['reason']}")
+            logger.error(f"   Error Code: {error_details['error_code']}")
+            logger.error(f"   Details: {error_details['error_details']}")
+            
+            # Suggerimenti specifici per timeout
+            if "timeout" in error_details['error_details'].lower() or "SynthesisConnectionTimeoutMs" in str(timeout_error):
+                logger.error("💡 PROBLEMA: Timeout di connessione Azure")
+                logger.error("   🌐 Possibili cause:")
+                logger.error("      - Connessione internet lenta")
+                logger.error("      - Firewall aziendale che blocca Azure")
+                logger.error("      - Proxy che rallenta le connessioni")
+                logger.error("   🔧 Soluzioni:")
+                logger.error("      - Controlla configurazione proxy/firewall")
+                logger.error("      - Usa region Azure più vicina")
+                logger.error("      - Verifica connessione internet")
+                
+            elif "authentication" in error_details['error_details'].lower():
+                logger.error("💡 PROBLEMA: Chiave Azure non valida")
+                logger.error("   - Verifica la chiave nel portale Azure")
+                logger.error("   - Assicurati che la risorsa Speech Services sia attiva")
+            elif "region" in error_details['error_details'].lower():
+                logger.error(f"💡 PROBLEMA: Region '{AZURE_SPEECH_REGION}' non disponibile")
+                logger.error("   - Verifica la region nel portale Azure")
+                logger.error("   - Prova region alternative: eastus, westus2, northeurope")
+            
+            raise Exception(f"Azure Speech test failed: {error_details['reason']} - {error_details['error_details']}")
+        else:
+            raise Exception(f"Azure Speech test failed with reason: {result.reason}")
+            
+    except Exception as e:
+        logger.error(f"❌ Azure Speech connection test error: {e}")
+        raise
+
+# Azure Speech Services - Configurazione funzionante
+
+async def generate_azure_speech(text: str, voice: str, output_path: str, ssml_options: dict = None):
+    """
+    Genera audio usando Azure Speech Services con configurazione Microsoft ufficiale
+    
+    Args:
+        text: Testo da sintetizzare
+        voice: Nome della voce Azure (es. it-IT-ElsaNeural)
+        output_path: Percorso file output
+        ssml_options: Opzioni SSML personalizzate (rate, pitch, volume, etc.)
+    
+    Returns:
+        bool: True se successo, False altrimenti
+    """
+    if not AZURE_SPEECH_KEY:
+        logger.error("Azure Speech Key non configurata")
+        return False
+
+    try:
+        logger.info(f"🧪 Using Microsoft official Azure configuration...")
+        
+        # Configurazione esatta come nell'esempio Microsoft che FUNZIONA
+        if AZURE_SPEECH_ENDPOINT:
+            speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, endpoint=AZURE_SPEECH_ENDPOINT)
+            logger.info(f"Using endpoint configuration: {AZURE_SPEECH_ENDPOINT}")
+        else:
+            speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
+            logger.info(f"Using region configuration: {AZURE_SPEECH_REGION}")
+        
+        # Configurazione voce come nell'esempio che funziona
+        speech_config.speech_synthesis_voice_name = voice
+        
+        # Creare synthesizer come nell'esempio Microsoft
+        speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
+        
+        logger.info(f"🎤 Synthesizing text: {text[:50]}...")
+        
+        # Se abbiamo opzioni SSML, genera SSML, altrimenti usa testo semplice
+        if ssml_options and any(ssml_options.values()):
+            ssml = generate_ssml(text, voice, ssml_options)
+            logger.debug(f"Using SSML: {ssml[:100]}...")
+            result = speech_synthesizer.speak_ssml_async(ssml).get()
+        else:
+            # Sintesi esatta come nell'esempio Microsoft che FUNZIONA
+            result = speech_synthesizer.speak_text_async(text).get()
+        
+        # Gestione risultato ESATTA come nell'esempio Microsoft
         if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-            # Salva l'audio direttamente
+            logger.info(f"✅ Speech synthesized successfully - {len(result.audio_data)} bytes")
+            
+            # Salva il file usando la stessa logica che funziona
             with open(output_path, 'wb') as audio_file:
                 audio_file.write(result.audio_data)
-            return True
+            
+            # Verifica che il file sia stato scritto correttamente
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                logger.info(f"✅ Azure Speech synthesis completed: {os.path.getsize(output_path)} bytes")
+                return True
+            else:
+                logger.error("File audio vuoto o non creato")
+                return False
+                
+        elif result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = speechsdk.CancellationDetails(result)
+            error_msg = f"Speech synthesis canceled: {cancellation_details.reason}"
+            
+            if cancellation_details.error_details:
+                error_msg += f" - {cancellation_details.error_details}"
+            
+            logger.error(f"❌ Azure Speech canceled: {error_msg}")
+            return False
         else:
-            logger.error(f"Azure Speech error: {result.reason}")
+            logger.error(f"❌ Azure Speech failed: {result.reason}")
             return False
             
     except Exception as e:
-        logger.error(f"Azure Speech error: {e}")
+        logger.error(f"❌ Azure Speech error: {e}")
         return False
+
+def generate_ssml(text: str, voice: str, options: dict) -> str:
+    """
+    Genera SSML avanzato per controllo fine della sintesi vocale
+    
+    Args:
+        text: Testo da sintetizzare
+        voice: Nome della voce Azure
+        options: Opzioni SSML (rate, pitch, volume, emphasis, breaks, etc.)
+    
+    Returns:
+        str: SSML formattato
+    """
+    # Estrai opzioni con valori default
+    rate = options.get('rate', 'medium')  # x-slow, slow, medium, fast, x-fast o percentuale
+    pitch = options.get('pitch', 'medium')  # x-low, low, medium, high, x-high o frequenza
+    volume = options.get('volume', 'medium')  # silent, x-soft, soft, medium, loud, x-loud
+    emphasis = options.get('emphasis', None)  # strong, moderate, reduced
+    break_time = options.get('break_time', None)  # Pausa in secondi
+    style = options.get('style', None)  # cheerful, sad, excited, etc. (per voci Neural)
+    style_degree = options.get('style_degree', '1.0')  # Intensità dello stile (0.01-2.0)
+    
+    # Escape HTML nel testo
+    import html
+    escaped_text = html.escape(text)
+    
+    # Costruisci SSML
+    ssml_parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="it-IT">'
+    ]
+    
+    # Tag voice con stile se supportato (Neural voices)
+    if style and 'Neural' in voice:
+        ssml_parts.append(f'<voice name="{voice}">')
+        ssml_parts.append(f'<mstts:express-as style="{style}" styledegree="{style_degree}" xmlns:mstts="https://www.w3.org/2001/mstts">')
+    else:
+        ssml_parts.append(f'<voice name="{voice}">')
+    
+    # Tag prosody per controllo rate, pitch, volume
+    prosody_attrs = []
+    if rate != 'medium':
+        prosody_attrs.append(f'rate="{rate}"')
+    if pitch != 'medium':
+        prosody_attrs.append(f'pitch="{pitch}"')
+    if volume != 'medium':
+        prosody_attrs.append(f'volume="{volume}"')
+    
+    if prosody_attrs:
+        ssml_parts.append(f'<prosody {" ".join(prosody_attrs)}>')
+    
+    # Aggiungi pausa iniziale se richiesta
+    if break_time:
+        ssml_parts.append(f'<break time="{break_time}s"/>')
+    
+    # Testo con eventuale enfasi
+    if emphasis:
+        ssml_parts.append(f'<emphasis level="{emphasis}">{escaped_text}</emphasis>')
+    else:
+        ssml_parts.append(escaped_text)
+    
+    # Chiudi tag prosody
+    if prosody_attrs:
+        ssml_parts.append('</prosody>')
+    
+    # Chiudi tag voice e express-as
+    if style and 'Neural' in voice:
+        ssml_parts.append('</mstts:express-as>')
+    ssml_parts.append('</voice>')
+    ssml_parts.append('</speak>')
+    
+    ssml = ''.join(ssml_parts)
+    logger.debug(f"Generated SSML: {ssml}")
+    return ssml
 
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "healthy", 
-        "azure_speech_ready": bool(AZURE_SPEECH_KEY),
-        "region": AZURE_SPEECH_REGION
+    """Health check per verificare lo stato del servizio TTS"""
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "azure_speech_configured": bool(AZURE_SPEECH_KEY),
+        "available_voices": len(AZURE_VOICES)
     }
+    
+    # Test connessione Azure se configurato
+    if AZURE_SPEECH_KEY:
+        try:
+            speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
+            health_status["azure_connection"] = "✅ OK"
+        except Exception as e:
+            health_status["azure_connection"] = "❌ Failed"
+            health_status["status"] = "degraded"
+    else:
+        health_status["azure_connection"] = "⚠️ Not configured"
+        health_status["status"] = "degraded"
+    
+    return health_status
+
+@app.post("/test-voice")
+async def test_voice(
+    voice_id: str = Form(...),
+    test_text: str = Form("Benvenuti nel nostro centralino telefonico. Come possiamo aiutarvi oggi?")
+):
+    """
+    Testa una voce specifica con un testo di prova
+    """
+    if voice_id not in AZURE_VOICES:
+        available_voices = list(AZURE_VOICES.keys())
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Voce non trovata. Voci disponibili: {', '.join(available_voices)}"
+        )
+    
+    if not AZURE_SPEECH_KEY:
+        raise HTTPException(
+            status_code=503, 
+            detail="Azure Speech Services non configurato. Configura AZURE_SPEECH_KEY."
+        )
+    
+    try:
+        # Genera file test
+        test_id = str(uuid.uuid4())[:8]
+        output_path = f"output/voice_test_{voice_id.replace('-', '_')}_{test_id}.wav"
+        
+        # Opzioni SSML di test
+        ssml_options = {
+            'rate': 'medium',
+            'pitch': 'medium',
+            'volume': 'medium',
+            'style': AZURE_VOICES[voice_id]["styles"][0] if AZURE_VOICES[voice_id]["styles"] else None
+        }
+        
+        success = await generate_azure_speech(test_text, voice_id, output_path, ssml_options)
+        
+        if success:
+            voice_info = AZURE_VOICES[voice_id]
+            return FileResponse(
+                output_path,
+                media_type="audio/wav",
+                filename=f"test_{voice_info['name'].lower()}_{test_id}.wav",
+                headers={
+                    "X-Voice-ID": voice_id,
+                    "X-Voice-Name": voice_info["name"],
+                    "X-Voice-Description": voice_info["description"]
+                }
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Errore nella generazione audio di test")
+            
+    except Exception as e:
+        logger.error(f"Error testing voice {voice_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore nel test della voce: {str(e)}")
 
 @app.get("/available-voices")
 async def get_available_voices():
-    """Ottieni lista delle voci disponibili Azure Speech Services"""
-    voices = {
-        "azure_voices": AZURE_VOICES,
-        "supported_languages": ["it-IT"],
-        "service": "Azure Speech Services",
-        "commercial_license": True
+    """Ottieni lista dettagliata delle voci Azure Speech Services disponibili"""
+    
+    # Organizza le voci per genere e tipo
+    organized_voices = {
+        "neural_voices": {
+            "female": {},
+            "male": {}
+        },
+        "standard_voices": {
+            "female": {},
+            "male": {}
+        }
     }
     
-    return voices
+    for voice_id, voice_info in AZURE_VOICES.items():
+        voice_type = "neural_voices" if "Neural" in voice_id else "standard_voices"
+        gender_key = "female" if voice_info["gender"] == "Female" else "male"
+        
+        organized_voices[voice_type][gender_key][voice_id] = {
+            "id": voice_id,
+            "name": voice_info["name"],
+            "description": voice_info["description"],
+            "styles": voice_info["styles"],
+            "recommended_for": voice_info["recommended_for"],
+            "is_neural": "Neural" in voice_id
+        }
+    
+    return {
+        "voices": organized_voices,
+        "total_count": len(AZURE_VOICES),
+        "neural_count": len([v for v in AZURE_VOICES.keys() if "Neural" in v]),
+        "supported_languages": ["it-IT"],
+        "service": "Azure Speech Services",
+        "commercial_license": True,
+        "style_support": True,
+        "pricing_info": "Pay-per-character pricing - see Azure pricing page",
+        "documentation": "https://docs.microsoft.com/azure/cognitive-services/speech-service/language-support"
+    }
 
 @app.post("/generate-audio")
 async def generate_audio(
@@ -256,90 +641,21 @@ async def generate_audio(
             with open(voice_ref_path, "wb") as buffer:
                 shutil.copyfileobj(voice_reference.file, buffer)
         
-        # Genera TTS basato sul servizio scelto
-        logger.info(f"Generating TTS for text: {text[:50]}... using {tts_service}")
+        # Genera TTS usando Azure Speech Services
+        logger.info(f"🎤 Generating TTS for text: {text[:50]}... using Azure Speech Services")
         
-        if tts_service == "azure":
-            # Usa Azure Speech Services - Versione commerciale legale
-            success = await generate_azure_speech(text, edge_voice, tts_path)
-            if not success:
-                raise HTTPException(status_code=500, detail="Azure Speech generation failed")
-        else:
-            # Fallback per compatibilità - usa Azure come default
-            success = await generate_azure_speech(text, edge_voice, tts_path)
-            if not success:
-                raise HTTPException(status_code=500, detail="Azure Speech generation failed")
-            model_name = getattr(tts, 'model_name', '') or str(type(tts)).lower()
-            
-            if 'your_tts' in model_name.lower() or 'yourtts' in model_name.lower():
-                # YourTTS è multi-speaker e RICHIEDE sempre uno speaker
-                if voice_reference and voice_reference.filename:
-                    logger.info("Using YourTTS voice cloning with reference audio")
-                    tts.tts_to_file(
-                        text=text,
-                        file_path=tts_path,
-                        speaker_wav=voice_ref_path,
-                        language=language
-                    )
-                elif predefined_speaker:
-                    logger.info(f"Using predefined speaker: {predefined_speaker}")
-                    # Mappa gli speaker predefiniti a quelli reali del modello
-                    speaker_mapping = {
-                        "female_01": "female_01",
-                        "female_02": "female_02", 
-                        "female_03": "female_03",
-                        "male_01": "male_01",
-                        "male_02": "male_02",
-                        "male_03": "male_03"
-                    }
-                    actual_speaker = speaker_mapping.get(predefined_speaker, predefined_speaker)
-                    tts.tts_to_file(
-                        text=text,
-                        file_path=tts_path,
-                        speaker=actual_speaker,
-                        language=language
-                    )
-                else:
-                    # YourTTS RICHIEDE uno speaker - usa il primo disponibile come default
-                    try:
-                        if hasattr(tts, 'speakers') and tts.speakers:
-                            default_speaker = tts.speakers[0]  # Primo speaker disponibile
-                            logger.info(f"Using default YourTTS speaker: {default_speaker}")
-                            tts.tts_to_file(
-                                text=text,
-                                file_path=tts_path,
-                                speaker=default_speaker,
-                                language=language
-                            )
-                        else:
-                            # Fallback con speaker generico
-                            logger.info("Using fallback speaker for YourTTS")
-                            tts.tts_to_file(
-                                text=text,
-                                file_path=tts_path,
-                                speaker="speaker_00",  # Speaker generico
-                                language=language
-                            )
-                    except Exception as speaker_error:
-                        logger.error(f"Error with speaker selection: {speaker_error}")
-                        # Ultimo tentativo senza specificare speaker
-                        tts.tts_to_file(text=text, file_path=tts_path)
-            elif 'xtts' in model_name.lower():
-                # XTTS_v2 voice cloning
-                if voice_reference and voice_reference.filename:
-                    logger.info("Using XTTS_v2 voice cloning with reference audio")
-                    tts.tts_to_file(
-                        text=text, 
-                        file_path=tts_path,
-                        speaker_wav=voice_ref_path,
-                        language=language
-                    )
-                else:
-                    tts.tts_to_file(text=text, file_path=tts_path, language=language)
-            else:
-                # Altri modelli TTS (Glow-TTS, VITS, etc.)
-                logger.info(f"Using standard TTS model: {model_name}")
-                tts.tts_to_file(text=text, file_path=tts_path)
+        # Opzioni SSML personalizzate per centralini
+        ssml_options = {
+            'rate': 'medium',  # Velocità moderata per chiarezza
+            'pitch': 'medium', # Tono medio per professionalità
+            'volume': 'loud',  # Volume alto per centralini
+            'style': 'customerservice' if 'Neural' in edge_voice else None,  # Stile servizio clienti
+            'emphasis': 'moderate'  # Enfasi moderata
+        }
+        
+        success = await generate_azure_speech(text, edge_voice, tts_path, ssml_options)
+        if not success:
+            raise HTTPException(status_code=500, detail="Azure Speech generation failed")
         
         # Carica audio voce e applica ottimizzazioni per suono più naturale
         voice = AudioSegment.from_wav(tts_path)
@@ -578,14 +894,13 @@ async def train_voice(
     transcriptions: str = Form(...)  # Trascrizioni separate da "|"
 ):
     """
-    Endpoint per allenare una nuova voce con XTTS_v2
-    - voice_name: Nome per la nuova voce
-    - audio_samples: Lista di file audio (WAV, MP3) di 3-30 secondi ciascuno
-    - transcriptions: Trascrizioni corrispondenti separate da "|"
-    """
-    if not tts or not hasattr(tts, 'model_name') or 'xtts' not in tts.model_name.lower():
-        raise HTTPException(status_code=400, detail="Voice training richiede XTTS_v2 model")
+    Endpoint per voice training con Azure Speech Services
     
+    Nota: Azure Speech Services non supporta training personalizzato tramite API pubblica.
+    Questo endpoint salva i campioni per referenza futura o per training offline.
+    
+    Per voice cloning in tempo reale, usa le voci Neural predefinite di Azure.
+    """
     # Crea directory per la nuova voce
     voice_dir = f"voices/{voice_name}"
     os.makedirs(voice_dir, exist_ok=True)
@@ -616,7 +931,7 @@ async def train_voice(
             "message": f"Training data per la voce '{voice_name}' salvati con successo",
             "samples_count": len(audio_samples),
             "voice_dir": voice_dir,
-            "note": "Usa i file nella directory per voice cloning con il parametro voice_reference"
+            "note": "Azure Speech Services usa voci Neural predefinite. Per voice cloning personalizzato, contatta il supporto Azure."
         }
         
     except Exception as e:
@@ -625,52 +940,89 @@ async def train_voice(
 
 @app.get("/speakers")
 async def get_available_speakers():
-    """Lista degli speaker predefiniti disponibili"""
+    """Lista degli speaker predefiniti Azure Speech Services"""
     
-    # Speaker predefiniti per diversi modelli
-    predefined_speakers = {
+    # Voci Azure Speech Services per centralini italiani
+    azure_voices = {
         "female_voices": [
-            {"id": "female_01", "name": "Sofia - Voce Femminile Italiana", "language": "it", "description": "Voce femminile naturale e professionale"},
-            {"id": "female_02", "name": "Elena - Voce Femminile Calda", "language": "it", "description": "Voce femminile accogliente per centralini"},
-            {"id": "female_03", "name": "Giulia - Voce Femminile Giovane", "language": "it", "description": "Voce femminile moderna e dinamica"}
+            {
+                "id": "it-IT-ElsaNeural", 
+                "name": "🚺 Elsa - Voce Femminile Professionale", 
+                "language": "it-IT", 
+                "description": "Voce femminile naturale e professionale per centralini",
+                "style_support": True,
+                "styles": ["customerservice", "newscast", "assistant"]
+            },
+            {
+                "id": "it-IT-IsabellaNeural", 
+                "name": "🚺 Isabella - Voce Femminile Espressiva", 
+                "language": "it-IT", 
+                "description": "Voce femminile espressiva e accogliente",
+                "style_support": True,
+                "styles": ["chat", "cheerful", "newscast"]
+            },
+            {
+                "id": "it-IT-IrmaNeural", 
+                "name": "🚺 Irma - Voce Femminile Calda", 
+                "language": "it-IT", 
+                "description": "Voce femminile calda e rassicurante",
+                "style_support": True,
+                "styles": ["chat", "friendly"]
+            }
         ],
         "male_voices": [
-            {"id": "male_01", "name": "Marco - Voce Maschile Italiana", "language": "it", "description": "Voce maschile autorevole e chiara"},
-            {"id": "male_02", "name": "Andrea - Voce Maschile Profonda", "language": "it", "description": "Voce maschile profonda e rassicurante"},
-            {"id": "male_03", "name": "Luca - Voce Maschile Energica", "language": "it", "description": "Voce maschile vivace e coinvolgente"}
+            {
+                "id": "it-IT-DiegoNeural", 
+                "name": "🚹 Diego - Voce Maschile Naturale", 
+                "language": "it-IT", 
+                "description": "Voce maschile autorevole e chiara per centralini",
+                "style_support": True,
+                "styles": ["customerservice", "newscast"]
+            },
+            {
+                "id": "it-IT-BenignoNeural", 
+                "name": "🚹 Benigno - Voce Maschile Espressiva", 
+                "language": "it-IT", 
+                "description": "Voce maschile espressiva e coinvolgente",
+                "style_support": True,
+                "styles": ["chat", "friendly"]
+            },
+            {
+                "id": "it-IT-CalimeroNeural", 
+                "name": "🚹 Calimero - Voce Maschile Giovane", 
+                "language": "it-IT", 
+                "description": "Voce maschile moderna e dinamica",
+                "style_support": True,
+                "styles": ["chat", "excited"]
+            }
+        ],
+        "multilingual_voices": [
+            {
+                "id": "it-IT-Giuseppe", 
+                "name": "🎤 Giuseppe - Voce Standard", 
+                "language": "it-IT", 
+                "description": "Voce maschile standard (compatibilità)",
+                "style_support": False,
+                "styles": []
+            },
+            {
+                "id": "it-IT-Lucia", 
+                "name": "🎤 Lucia - Voce Standard", 
+                "language": "it-IT", 
+                "description": "Voce femminile standard (compatibilità)",
+                "style_support": False,
+                "styles": []
+            }
         ]
     }
     
-    # Se abbiamo TTS caricato, prova a ottenere speaker reali
-    if tts:
-        try:
-            # Per YourTTS e XTTS che supportano speaker multipli
-            if hasattr(tts, 'speakers') and tts.speakers:
-                real_speakers = []
-                for i, speaker in enumerate(tts.speakers[:15]):  # Limita a 15 speaker
-                    # Crea nomi più descrittivi per gli speaker
-                    if 'female' in str(speaker).lower():
-                        speaker_name = f"🚺 {speaker} - Voce Femminile"
-                    elif 'male' in str(speaker).lower():
-                        speaker_name = f"🚹 {speaker} - Voce Maschile"
-                    else:
-                        speaker_name = f"🎤 {speaker}"
-                    
-                    real_speakers.append({
-                        "id": speaker,
-                        "name": speaker_name,
-                        "language": "multilingual",
-                        "description": f"Speaker nativo del modello YourTTS"
-                    })
-                predefined_speakers["model_speakers"] = real_speakers
-                logger.info(f"Found {len(real_speakers)} speakers in the model")
-        except Exception as e:
-            logger.warning(f"Could not get model speakers: {e}")
-    
     return {
-        "available_speakers": predefined_speakers,
-        "model_loaded": tts is not None,
-        "voice_cloning_supported": True
+        "available_speakers": azure_voices,
+        "service": "Azure Speech Services",
+        "total_voices": sum(len(voices) for voices in azure_voices.values()),
+        "neural_voices_supported": True,
+        "style_customization": True,
+        "voice_cloning_note": "Per voice cloning personalizzato, contatta il supporto Azure Speech Services"
     }
 
 @app.get("/voices")

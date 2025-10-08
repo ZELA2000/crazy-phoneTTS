@@ -1,3 +1,4 @@
 backend/output/
 backend/uploads/library/
 .github/
+.env
