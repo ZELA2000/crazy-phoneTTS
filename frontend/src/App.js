@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.7.200:8000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 function App() {
   // Stati base
@@ -39,7 +39,6 @@ function App() {
     try {
       const response = await axios.get(`${API_URL}/music-library/list`);
       setMusicLibrary(response.data.songs || []);
-      console.log('Libreria musicale caricata:', response.data.songs);
     } catch (err) {
       console.error('Errore nel caricamento della libreria:', err);
     }
@@ -72,13 +71,10 @@ function App() {
       const name = file.name.replace(/\.[^/.]+$/, '');
       formData.append('name', name);
 
-      console.log('Uploading file:', file.name, 'with name:', name);
-
       const response = await axios.post(`${API_URL}/music-library/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      console.log('Upload response:', response.data);
       setSuccess('Musica caricata con successo!');
       await loadMusicLibrary(); // Ricarica la libreria
       
@@ -142,17 +138,6 @@ function App() {
         formData.append('fade_out', fadeOut.toString());
         formData.append('fade_in_duration', fadeInDuration.toString());
         formData.append('fade_out_duration', fadeOutDuration.toString());
-        
-        console.log('Parametri musica inviati:', {
-          library_song_id: selectedMusic,
-          music_volume: musicVolume,
-          music_before: musicBefore,
-          music_after: musicAfter,
-          fade_in: fadeIn,
-          fade_out: fadeOut,
-          fade_in_duration: fadeInDuration,
-          fade_out_duration: fadeOutDuration
-        });
       }
 
       // Aggiungi parametri formato e qualità
@@ -188,7 +173,7 @@ function App() {
       a.href = audioUrl;
       // Crea nome file: nomepersonalizzato_data.estensione (formato YYMMDD)
       const today = new Date();
-      const dateStr = today.getFullYear().toString().substr(-2) + 
+      const dateStr = today.getFullYear().toString().slice(-2) + 
                      (today.getMonth() + 1).toString().padStart(2, '0') + 
                      today.getDate().toString().padStart(2, '0');
       const cleanFileName = fileName.trim() || 'centralino_audio';

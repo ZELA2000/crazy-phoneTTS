@@ -13,6 +13,7 @@ import asyncio
 import aiofiles
 import requests
 import io
+import json
 from datetime import datetime
 
 # Setup logging
@@ -23,6 +24,14 @@ logger = logging.getLogger(__name__)
 AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY")
 AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "westeurope")
 AZURE_SPEECH_ENDPOINT = os.getenv("AZURE_SPEECH_ENDPOINT")  # Optional: custom endpoint
+
+# Audio Processing Constants
+VOICE_HEADROOM_DB = 2.0  # Headroom for voice normalization to avoid clipping
+VOICE_LOWPASS_CUTOFF_HZ = 8000  # Cutoff frequency for low-pass filter to reduce metallic sound
+VOICE_REDUCTION_DB = 3  # dB reduction for softer, warmer voice output
+MUSIC_DURING_VOICE_REDUCTION_DB = 6  # Additional dB reduction for background music during voice
+MUSIC_VOLUME_SCALE_DB = 60  # Scale factor for music volume control (0.0-1.0 to dB)
+MAX_MUSIC_FILE_SIZE = 50 * 1024 * 1024  # 50MB max file size for music uploads
 
 if not AZURE_SPEECH_KEY:
     logger.error("AZURE_SPEECH_KEY non configurata! Configura la variabile d'ambiente AZURE_SPEECH_KEY.")
@@ -37,15 +46,20 @@ def convert_audio_to_format(audio_segment, output_format, audio_quality, custom_
     A-law (g.711): 8k, 8bit, 64kbps  
     u-law (g.711): 8k, 8bit, 64kbps
     """
-    from datetime import datetime
-    
     # Genera data in formato YYMMDD
     date_str = datetime.now().strftime("%y%m%d")
     
-    # Pulisci il nome personalizzato per la sicurezza
+    # Valida e pulisci il nome personalizzato per la sicurezza
+    # Previeni path traversal
+    if ".." in custom_filename or "/" in custom_filename or "\\" in custom_filename:
+        raise ValueError("Nome file non valido: caratteri non ammessi")
+    
     clean_name = "".join(c for c in custom_filename if c.isalnum() or c in "._-").strip()
     if not clean_name:
         clean_name = "centralino_audio"
+    
+    # Assicura che la directory output esista
+    os.makedirs("output", exist_ok=True)
     
     # Applica le specifiche per qualità telefonica
     if audio_quality == "pcm":
@@ -96,7 +110,11 @@ app = FastAPI(title="crazy-phoneTTS API", description="TTS con mixaggio musicale
 # CORS middleware per il frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Consenti tutte le origini
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        os.getenv("FRONTEND_URL", "http://localhost:3000")
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -624,7 +642,6 @@ async def generate_audio(
             if not os.path.exists(metadata_path):
                 raise HTTPException(status_code=404, detail="Canzone della libreria non trovata")
             
-            import json
             with open(metadata_path, "r", encoding="utf-8") as f:
                 metadata = json.load(f)
             music_path = metadata["file_path"]
@@ -661,14 +678,14 @@ async def generate_audio(
         voice = AudioSegment.from_wav(tts_path)
         
         # Normalizza con parametri più morbidi per evitare distorsioni
-        voice = normalize(voice, headroom=2.0)
+        voice = normalize(voice, headroom=VOICE_HEADROOM_DB)
         
         # Applica un lieve filtro passa-basso per ridurre metallic sound
         # Riduci leggermente le frequenze acute che causano suono metallico
-        voice = voice.low_pass_filter(8000)  # Taglia frequenze sopra 8kHz
+        voice = voice.low_pass_filter(VOICE_LOWPASS_CUTOFF_HZ)
         
         # Aggiungi un po' di "warmth" riducendo lievemente il volume generale
-        voice = voice - 3  # Riduci di 3dB per suono più morbido
+        voice = voice - VOICE_REDUCTION_DB
         
         # Se c'è musica, processala e mixa con controlli avanzati
         if music_path and os.path.exists(music_path):
@@ -676,7 +693,7 @@ async def generate_audio(
             music = normalize(music)
             
             # Riduce il volume della musica secondo il parametro
-            music = music - (60 - int(music_volume * 60))  # Converti 0-1 in dB
+            music = music - (MUSIC_VOLUME_SCALE_DB - int(music_volume * MUSIC_VOLUME_SCALE_DB))
             
             # Calcola le durate
             voice_duration = len(voice)
@@ -710,7 +727,7 @@ async def generate_audio(
             # 2. Voce + musica di sottofondo
             music_during_voice = music[music_before_ms:music_before_ms + voice_duration]
             # Riduci ulteriormente il volume della musica durante la voce
-            music_during_voice = music_during_voice - 6  # -6dB per dare priorità alla voce
+            music_during_voice = music_during_voice - MUSIC_DURING_VOICE_REDUCTION_DB
             voice_with_bg = voice.overlay(music_during_voice)
             
             # 3. Musica dopo il testo (solo musica)
@@ -739,7 +756,6 @@ async def generate_audio(
         if not clean_name:
             clean_name = "centralino_audio"
         
-        from datetime import datetime
         date_str = datetime.now().strftime("%y%m%d")
         
         return FileResponse(
@@ -751,13 +767,30 @@ async def generate_audio(
     except Exception as e:
         logger.error(f"Error generating audio: {e}")
         # Cleanup in case of error
-        for path in [tts_path, final_path]:
-            if 'path' in locals() and os.path.exists(path):
-                os.remove(path)
+        cleanup_paths = [
+            ('tts_path', tts_path if 'tts_path' in locals() else None),
+            ('final_path', final_path if 'final_path' in locals() else None),
+        ]
+        for name, path in cleanup_paths:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                    logger.debug(f"Cleaned up {name}: {path}")
+                except Exception as cleanup_err:
+                    logger.warning(f"Failed to cleanup {name}: {cleanup_err}")
+        
         if music_path and not library_song_id and os.path.exists(music_path):
-            os.remove(music_path)
+            try:
+                os.remove(music_path)
+            except Exception as cleanup_err:
+                logger.warning(f"Failed to cleanup music_path: {cleanup_err}")
+        
         if voice_ref_path and os.path.exists(voice_ref_path):
-            os.remove(voice_ref_path)
+            try:
+                os.remove(voice_ref_path)
+            except Exception as cleanup_err:
+                logger.warning(f"Failed to cleanup voice_ref_path: {cleanup_err}")
+        
         raise HTTPException(status_code=500, detail=f"Errore nella generazione audio: {str(e)}")
 
 @app.post("/music-library/upload")
@@ -775,6 +808,20 @@ async def upload_music_to_library(
     audio_types = ['audio/mp3', 'audio/wav', 'audio/mpeg', 'audio/ogg', 'audio/mp4']
     if music_file.content_type not in audio_types:
         raise HTTPException(status_code=400, detail="File deve essere audio (MP3, WAV, OGG)")
+    
+    # Verifica dimensione file
+    content = await music_file.read()
+    file_size = len(content)
+    await music_file.seek(0)  # Reset per uso successivo
+    
+    if file_size > MAX_MUSIC_FILE_SIZE:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"File troppo grande. Dimensione massima: {MAX_MUSIC_FILE_SIZE // (1024*1024)}MB"
+        )
+    
+    if file_size == 0:
+        raise HTTPException(status_code=400, detail="File vuoto")
     
     # Crea directory libreria se non esiste
     library_dir = "uploads/library"
@@ -810,7 +857,6 @@ async def upload_music_to_library(
         
         metadata_path = os.path.join(library_dir, f"{song_id}.json")
         with open(metadata_path, "w", encoding="utf-8") as f:
-            import json
             json.dump(metadata, f, ensure_ascii=False, indent=2)
         
         logger.info(f"Music uploaded to library: {name} ({song_id})")
@@ -839,7 +885,6 @@ async def list_music_library():
         if file.endswith('.json'):
             try:
                 with open(os.path.join(library_dir, file), "r", encoding="utf-8") as f:
-                    import json
                     metadata = json.load(f)
                     # Verifica che il file audio esista ancora
                     if os.path.exists(metadata["file_path"]):
@@ -866,7 +911,6 @@ async def delete_music_from_library(song_id: str):
     try:
         # Leggi metadata per ottenere il percorso del file
         with open(metadata_path, "r", encoding="utf-8") as f:
-            import json
             metadata = json.load(f)
         
         # Elimina file audio
