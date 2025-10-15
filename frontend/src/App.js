@@ -66,6 +66,26 @@ function App() {
   // SISTEMA SALVATAGGIO PREFERENZE UTENTE
   // ==========================================
 
+  // Helper per conversione tempo
+  const formatTime = (seconds) => {
+    if (seconds < 60) {
+      return `${seconds.toFixed(1)}s`;
+    } else {
+      const minutes = Math.floor(seconds / 60);
+      const secs = (seconds % 60).toFixed(1);
+      return `${minutes}m ${secs}s`;
+    }
+  };
+
+  const parseTimeInput = (value, unit) => {
+    const numValue = parseFloat(value) || 0;
+    switch(unit) {
+      case 'minutes': return numValue * 60;
+      case 'seconds': return numValue;
+      default: return numValue;
+    }
+  };
+
   const defaultPreferences = {
     musicVolume: 0.7,
     musicBefore: 2.0,
@@ -552,31 +572,83 @@ function App() {
             />
           </div>
 
-          {/* Timing Musica */}
+          {/* Timing Musica Esteso */}
           <div className="form-row">
             <div className="form-group">
-              <label>Musica prima del testo: {musicBefore.toFixed(1)}s</label>
-              <input
-                type="range"
-                min="0"
-                max="10"
-                step="0.5"
-                value={musicBefore}
-                onChange={(e) => setMusicBefore(parseFloat(e.target.value))}
-                className="slider"
-              />
+              <label>Musica prima del testo: {formatTime(musicBefore)}</label>
+              <div className="time-input-group">
+                <input
+                  type="number"
+                  min="0"
+                  max="999"
+                  step="0.1"
+                  value={musicBefore < 60 ? musicBefore.toFixed(1) : (musicBefore / 60).toFixed(1)}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value) || 0;
+                    const unit = musicBefore < 60 ? 'seconds' : 'minutes';
+                    setMusicBefore(parseTimeInput(value, unit));
+                  }}
+                  className="time-input"
+                />
+                <select
+                  value={musicBefore < 60 ? 'seconds' : 'minutes'}
+                  onChange={(e) => {
+                    const currentValue = musicBefore < 60 ? musicBefore : musicBefore / 60;
+                    setMusicBefore(parseTimeInput(currentValue, e.target.value));
+                  }}
+                  className="time-unit-select"
+                >
+                  <option value="seconds">secondi</option>
+                  <option value="minutes">minuti</option>
+                </select>
+              </div>
+              <div className="time-presets">
+                <button type="button" onClick={() => setMusicBefore(0)} className="preset-btn">0s</button>
+                <button type="button" onClick={() => setMusicBefore(2)} className="preset-btn">2s</button>
+                <button type="button" onClick={() => setMusicBefore(5)} className="preset-btn">5s</button>
+                <button type="button" onClick={() => setMusicBefore(10)} className="preset-btn">10s</button>
+                <button type="button" onClick={() => setMusicBefore(30)} className="preset-btn">30s</button>
+                <button type="button" onClick={() => setMusicBefore(60)} className="preset-btn">1min</button>
+                <button type="button" onClick={() => setMusicBefore(120)} className="preset-btn">2min</button>
+              </div>
             </div>
             <div className="form-group">
-              <label>Musica dopo il testo: {musicAfter.toFixed(1)}s</label>
-              <input
-                type="range"
-                min="0"
-                max="10"
-                step="0.5"
-                value={musicAfter}
-                onChange={(e) => setMusicAfter(parseFloat(e.target.value))}
-                className="slider"
-              />
+              <label>Musica dopo il testo: {formatTime(musicAfter)}</label>
+              <div className="time-input-group">
+                <input
+                  type="number"
+                  min="0"
+                  max="999"
+                  step="0.1"
+                  value={musicAfter < 60 ? musicAfter.toFixed(1) : (musicAfter / 60).toFixed(1)}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value) || 0;
+                    const unit = musicAfter < 60 ? 'seconds' : 'minutes';
+                    setMusicAfter(parseTimeInput(value, unit));
+                  }}
+                  className="time-input"
+                />
+                <select
+                  value={musicAfter < 60 ? 'seconds' : 'minutes'}
+                  onChange={(e) => {
+                    const currentValue = musicAfter < 60 ? musicAfter : musicAfter / 60;
+                    setMusicAfter(parseTimeInput(currentValue, e.target.value));
+                  }}
+                  className="time-unit-select"
+                >
+                  <option value="seconds">secondi</option>
+                  <option value="minutes">minuti</option>
+                </select>
+              </div>
+              <div className="time-presets">
+                <button type="button" onClick={() => setMusicAfter(0)} className="preset-btn">0s</button>
+                <button type="button" onClick={() => setMusicAfter(2)} className="preset-btn">2s</button>
+                <button type="button" onClick={() => setMusicAfter(5)} className="preset-btn">5s</button>
+                <button type="button" onClick={() => setMusicAfter(10)} className="preset-btn">10s</button>
+                <button type="button" onClick={() => setMusicAfter(30)} className="preset-btn">30s</button>
+                <button type="button" onClick={() => setMusicAfter(60)} className="preset-btn">1min</button>
+                <button type="button" onClick={() => setMusicAfter(120)} className="preset-btn">2min</button>
+              </div>
             </div>
           </div>
 

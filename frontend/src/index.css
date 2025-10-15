@@ -1036,3 +1036,83 @@ small {
   outline: none;
   box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
 }
+
+/* ==========================================
+   CONTROLLI TEMPORALI ESTESI
+   ========================================== */
+
+.time-input-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.time-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 14px;
+  background-color: #fff;
+  min-width: 80px;
+  transition: border-color 0.2s ease;
+}
+
+.time-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+.time-unit-select {
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 14px;
+  background-color: #fff;
+  min-width: 90px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.time-unit-select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+.time-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+
+.preset-btn {
+  padding: 4px 8px;
+  border: 1px solid #007bff;
+  background-color: transparent;
+  color: #007bff;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 35px;
+  text-align: center;
+}
+
+.preset-btn:hover {
+  background-color: #007bff;
+  color: white;
+  transform: translateY(-1px);
+}
+
+.preset-btn:active {
+  transform: scale(0.95);
+}
+
+.preset-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.3);
+}
