@@ -1,9 +1,12 @@
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import uuid
 import shutil
+import sqlite3
+import json
+from typing import List, Dict, Any
 from pydub import AudioSegment
 from pydub.effects import normalize
 import tempfile
@@ -24,11 +27,119 @@ AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY")
 AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "westeurope")
 AZURE_SPEECH_ENDPOINT = os.getenv("AZURE_SPEECH_ENDPOINT")  # Optional: custom endpoint
 
+# Network Configuration
+BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")  # Default: accept connections from all IPs
+BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))  # Default: port 8000
+
 if not AZURE_SPEECH_KEY:
     logger.error("AZURE_SPEECH_KEY non configurata! Configura la variabile d'ambiente AZURE_SPEECH_KEY.")
     logger.info("Per ottenere una chiave Azure Speech: https://docs.microsoft.com/azure/cognitive-services/speech-service/get-started")
 else:
     logger.info("Azure Speech Services configurato correttamente")
+
+logger.info(f"Server configurato per ascoltare su: {BACKEND_HOST}:{BACKEND_PORT}")
+
+# ==========================================
+# SISTEMA CRONOLOGIA TESTI REAL-TIME
+# ==========================================
+
+# Manager per connessioni WebSocket attive
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        logger.info(f"Nuova connessione WebSocket. Totale: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        logger.info(f"Connessione WebSocket chiusa. Totale: {len(self.active_connections)}")
+
+    async def broadcast(self, message: dict):
+        """Invia messaggio a tutti i client connessi"""
+        if self.active_connections:
+            dead_connections = []
+            for connection in self.active_connections:
+                try:
+                    await connection.send_text(json.dumps(message))
+                except:
+                    dead_connections.append(connection)
+            
+            # Rimuovi connessioni morte
+            for dead in dead_connections:
+                self.disconnect(dead)
+
+manager = ConnectionManager()
+
+# Database per cronologia testi
+def init_database():
+    """Inizializza database SQLite per cronologia"""
+    conn = sqlite3.connect('text_history.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS text_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            text TEXT NOT NULL,
+            voice TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            user_ip TEXT,
+            audio_generated BOOLEAN DEFAULT FALSE
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+    logger.info("Database cronologia inizializzato")
+
+def add_text_to_history(text: str, voice: str, user_ip: str = None):
+    """Aggiunge testo alla cronologia"""
+    conn = sqlite3.connect('text_history.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT INTO text_history (text, voice, user_ip, audio_generated)
+        VALUES (?, ?, ?, TRUE)
+    ''', (text, voice, user_ip))
+    
+    conn.commit()
+    history_id = cursor.lastrowid
+    conn.close()
+    
+    return history_id
+
+def get_recent_history(limit: int = 10):
+    """Recupera cronologia recente"""
+    conn = sqlite3.connect('text_history.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT id, text, voice, timestamp, user_ip
+        FROM text_history 
+        WHERE audio_generated = TRUE
+        ORDER BY timestamp DESC 
+        LIMIT ?
+    ''', (limit,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return [
+        {
+            "id": row[0],
+            "text": row[1][:100] + "..." if len(row[1]) > 100 else row[1],  # Trunca testi lunghi
+            "voice": row[2],
+            "timestamp": row[3],
+            "user_ip": row[4][-8:] if row[4] else "unknown"  # Solo ultimi 8 caratteri IP per privacy
+        }
+        for row in rows
+    ]
+
+# Inizializza database all'avvio
+init_database()
 
 def convert_audio_to_format(audio_segment, output_format, audio_quality, custom_filename):
     """
@@ -443,6 +554,42 @@ def generate_ssml(text: str, voice: str, options: dict) -> str:
     logger.debug(f"Generated SSML: {ssml}")
     return ssml
 
+# ==========================================
+# ENDPOINT CRONOLOGIA E WEBSOCKET
+# ==========================================
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket per aggiornamenti real-time della cronologia"""
+    await manager.connect(websocket)
+    try:
+        # Invia cronologia iniziale al nuovo utente
+        history = get_recent_history(10)
+        await websocket.send_text(json.dumps({
+            "type": "history_update",
+            "data": history
+        }))
+        
+        # Mantieni connessione attiva
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+@app.get("/api/history")
+async def get_text_history(limit: int = 10):
+    """Recupera cronologia recente dei testi"""
+    try:
+        history = get_recent_history(limit)
+        return {
+            "status": "success",
+            "data": history,
+            "total": len(history)
+        }
+    except Exception as e:
+        logger.error(f"Errore recupero cronologia: {e}")
+        raise HTTPException(status_code=500, detail="Errore recupero cronologia")
+
 @app.get("/health")
 async def health_check():
     """Health check per verificare lo stato del servizio TTS"""
@@ -656,6 +803,31 @@ async def generate_audio(
         success = await generate_azure_speech(text, edge_voice, tts_path, ssml_options)
         if not success:
             raise HTTPException(status_code=500, detail="Azure Speech generation failed")
+        
+        # Salva nella cronologia e notifica utenti connessi
+        try:
+            # Ottieni IP utente per tracking (solo ultimi caratteri per privacy)
+            user_ip = "unknown"  # In produzione: request.client.host
+            
+            history_id = add_text_to_history(text, edge_voice, user_ip)
+            
+            # Notifica tutti gli utenti connessi del nuovo testo
+            history_update = {
+                "type": "new_text",
+                "data": {
+                    "id": history_id,
+                    "text": text[:100] + "..." if len(text) > 100 else text,
+                    "voice": edge_voice,
+                    "timestamp": datetime.now().isoformat(),
+                    "user_ip": user_ip[-8:] if user_ip != "unknown" else "unknown"
+                }
+            }
+            await manager.broadcast(history_update)
+            
+            logger.info(f"✅ Testo salvato nella cronologia (ID: {history_id})")
+        except Exception as e:
+            logger.warning(f"⚠️ Errore salvataggio cronologia: {e}")
+            # Non interrompere la generazione audio per errori cronologia
         
         # Carica audio voce e applica ottimizzazioni per suono più naturale
         voice = AudioSegment.from_wav(tts_path)
@@ -1057,4 +1229,5 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    logger.info(f"Avvio server su {BACKEND_HOST}:{BACKEND_PORT}")
+    uvicorn.run(app, host=BACKEND_HOST, port=BACKEND_PORT)

@@ -822,3 +822,217 @@ small {
   padding: 10px;
   font-size: 14px;
 }
+
+/* ==========================================
+   STILI CRONOLOGIA LIVE
+   ========================================== */
+
+.connection-status {
+  margin-top: 12px;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.connected {
+  color: #059669;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.disconnected {
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.preferences-saved {
+  color: #7c3aed;
+  font-weight: 600;
+  font-size: 14px;
+  animation: fadeInOut 2s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-10px); }
+  20% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.toggle-button {
+  background: #6366f1;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.toggle-button:hover {
+  background: #4f46e5;
+}
+
+.history-container {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.history-list {
+  padding: 0;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+  transition: background-color 0.2s;
+}
+
+.history-item:hover {
+  background: #f1f5f9;
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-content {
+  flex: 1;
+  cursor: pointer;
+}
+
+.history-text {
+  font-size: 15px;
+  color: #1e293b;
+  margin-bottom: 6px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.history-text:hover {
+  color: #6366f1;
+}
+
+.history-meta {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.use-text-button {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 18px;
+  transition: background-color 0.2s;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+.use-text-button:hover {
+  background: #059669;
+}
+
+.no-history {
+  text-align: center;
+  color: #64748b;
+  padding: 32px;
+  font-style: italic;
+}
+
+/* Scrollbar personalizzata per cronologia */
+.history-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.history-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.history-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.history-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Responsive per cronologia */
+@media (max-width: 768px) {
+  .history-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .history-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .use-text-button {
+    margin-left: 0;
+    align-self: flex-end;
+  }
+  
+  .history-meta {
+    font-size: 11px;
+  }
+}
+
+/* ==========================================
+   PULSANTE RESET PREFERENZE
+   ========================================== */
+
+.reset-btn {
+  background: #f59e0b;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
+}
+
+.reset-btn:hover {
+  background: #d97706;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
+}
+
+.reset-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
+}
+
+.reset-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+}

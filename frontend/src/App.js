@@ -1,7 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.7.200:8000';
+// ==========================================
+// RILEVAMENTO AUTOMATICO IP PER RETE
+// ==========================================
+
+const getApiUrl = () => {
+  // Se specificato come variabile d'ambiente, usa quello
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // Rileva automaticamente l'IP giusto da usare
+  const currentHost = window.location.hostname;
+  
+  // Se stiamo accedendo tramite localhost, usa localhost
+  if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+    return 'http://localhost:8000';
+  }
+  
+  // Se stiamo accedendo tramite un IP di rete, usa lo stesso IP
+  return `http://${currentHost}:8000`;
+};
+
+const API_URL = getApiUrl();
+
+console.log('🌐 API URL rilevato automaticamente:', API_URL);
+console.log('🖥️ Host corrente:', window.location.hostname);
 
 function App() {
   // Stati base
@@ -10,6 +35,13 @@ function App() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
+
+  // Stati per cronologia real-time
+  const [textHistory, setTextHistory] = useState([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
+  const [preferencesSaved, setPreferencesSaved] = useState(false);
+  const wsRef = useRef(null);
 
   // Stati per la libreria musicale
   const [musicLibrary, setMusicLibrary] = useState([]);
@@ -30,10 +62,193 @@ function App() {
   const [audioQuality, setAudioQuality] = useState('pcm');
   const [fileName, setFileName] = useState('centralino_audio');
 
-  // Carica la libreria musicale all'avvio
+  // ==========================================
+  // SISTEMA SALVATAGGIO PREFERENZE UTENTE
+  // ==========================================
+
+  const defaultPreferences = {
+    musicVolume: 0.7,
+    musicBefore: 2.0,
+    musicAfter: 2.0,
+    fadeIn: true,
+    fadeOut: true,
+    fadeInDuration: 1.0,
+    fadeOutDuration: 1.0,
+    outputFormat: 'wav',
+    audioQuality: 'pcm',
+    fileName: 'centralino_audio',
+    selectedMusic: ''
+  };
+
+  const savePreferences = () => {
+    const preferences = {
+      musicVolume,
+      musicBefore,
+      musicAfter,
+      fadeIn,
+      fadeOut,
+      fadeInDuration,
+      fadeOutDuration,
+      outputFormat,
+      audioQuality,
+      fileName,
+      selectedMusic
+    };
+    
+    try {
+      localStorage.setItem('crazy-phonetts-preferences', JSON.stringify(preferences));
+      console.log('✅ Preferenze salvate:', preferences);
+      
+      // Mostra indicatore visivo brevemente
+      setPreferencesSaved(true);
+      setTimeout(() => setPreferencesSaved(false), 2000);
+    } catch (err) {
+      console.error('❌ Errore salvataggio preferenze:', err);
+    }
+  };
+
+  const loadPreferences = () => {
+    try {
+      const saved = localStorage.getItem('crazy-phonetts-preferences');
+      if (saved) {
+        const preferences = JSON.parse(saved);
+        console.log('📖 Caricamento preferenze salvate:', preferences);
+        
+        // Applica le preferenze salvate
+        setMusicVolume(preferences.musicVolume ?? defaultPreferences.musicVolume);
+        setMusicBefore(preferences.musicBefore ?? defaultPreferences.musicBefore);
+        setMusicAfter(preferences.musicAfter ?? defaultPreferences.musicAfter);
+        setFadeIn(preferences.fadeIn ?? defaultPreferences.fadeIn);
+        setFadeOut(preferences.fadeOut ?? defaultPreferences.fadeOut);
+        setFadeInDuration(preferences.fadeInDuration ?? defaultPreferences.fadeInDuration);
+        setFadeOutDuration(preferences.fadeOutDuration ?? defaultPreferences.fadeOutDuration);
+        setOutputFormat(preferences.outputFormat ?? defaultPreferences.outputFormat);
+        setAudioQuality(preferences.audioQuality ?? defaultPreferences.audioQuality);
+        setFileName(preferences.fileName ?? defaultPreferences.fileName);
+        setSelectedMusic(preferences.selectedMusic ?? defaultPreferences.selectedMusic);
+        
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('❌ Errore caricamento preferenze:', err);
+      return false;
+    }
+  };
+
+  const resetPreferences = () => {
+    try {
+      localStorage.removeItem('crazy-phonetts-preferences');
+      
+      // Ripristina valori default
+      setMusicVolume(defaultPreferences.musicVolume);
+      setMusicBefore(defaultPreferences.musicBefore);
+      setMusicAfter(defaultPreferences.musicAfter);
+      setFadeIn(defaultPreferences.fadeIn);
+      setFadeOut(defaultPreferences.fadeOut);
+      setFadeInDuration(defaultPreferences.fadeInDuration);
+      setFadeOutDuration(defaultPreferences.fadeOutDuration);
+      setOutputFormat(defaultPreferences.outputFormat);
+      setAudioQuality(defaultPreferences.audioQuality);
+      setFileName(defaultPreferences.fileName);
+      setSelectedMusic(defaultPreferences.selectedMusic);
+      
+      setSuccess('🔄 Impostazioni ripristinate ai valori di default');
+      setTimeout(() => setSuccess(''), 3000);
+      
+      console.log('🔄 Preferenze ripristinate ai default');
+    } catch (err) {
+      console.error('❌ Errore reset preferenze:', err);
+    }
+  };
+
+  // Carica la libreria musicale e preferenze all'avvio
   useEffect(() => {
+    // Carica preferenze salvate PRIMA di tutto
+    const preferencesLoaded = loadPreferences();
+    if (preferencesLoaded) {
+      console.log('✅ Preferenze utente caricate dal localStorage');
+    } else {
+      console.log('ℹ️ Nessuna preferenza salvata, uso valori default');
+    }
+    
     loadMusicLibrary();
+    setupWebSocketConnection();
+    loadTextHistory();
+    
+    // Cleanup WebSocket quando componente viene smontato
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
   }, []);
+
+  // Salva automaticamente le preferenze quando cambiano
+  useEffect(() => {
+    // Evita di salvare durante il caricamento iniziale
+    const timer = setTimeout(() => {
+      savePreferences();
+    }, 500); // Debounce di 500ms
+    
+    return () => clearTimeout(timer);
+  }, [musicVolume, musicBefore, musicAfter, fadeIn, fadeOut, fadeInDuration, fadeOutDuration, outputFormat, audioQuality, fileName, selectedMusic]);
+
+  const setupWebSocketConnection = () => {
+    try {
+      const wsUrl = API_URL.replace('http', 'ws') + '/ws';
+      console.log('Connessione WebSocket a:', wsUrl);
+      
+      wsRef.current = new WebSocket(wsUrl);
+      
+      wsRef.current.onopen = () => {
+        console.log('✅ WebSocket connesso');
+        setIsConnected(true);
+      };
+      
+      wsRef.current.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('📨 Messaggio WebSocket ricevuto:', message);
+          
+          if (message.type === 'history_update') {
+            setTextHistory(message.data);
+          } else if (message.type === 'new_text') {
+            setTextHistory(prev => [message.data, ...prev.slice(0, 9)]); // Mantieni ultimi 10
+          }
+        } catch (err) {
+          console.error('Errore parsing messaggio WebSocket:', err);
+        }
+      };
+      
+      wsRef.current.onclose = () => {
+        console.log('❌ WebSocket disconnesso');
+        setIsConnected(false);
+        
+        // Riconnetti dopo 3 secondi
+        setTimeout(() => {
+          setupWebSocketConnection();
+        }, 3000);
+      };
+      
+      wsRef.current.onerror = (error) => {
+        console.error('❌ Errore WebSocket:', error);
+        setIsConnected(false);
+      };
+    } catch (err) {
+      console.error('Errore setup WebSocket:', err);
+    }
+  };
+
+  const loadTextHistory = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/history`);
+      setTextHistory(response.data.data || []);
+      console.log('Cronologia caricata:', response.data.data);
+    } catch (err) {
+      console.error('Errore caricamento cronologia:', err);
+    }
+  };
 
   const loadMusicLibrary = async () => {
     try {
@@ -204,10 +419,68 @@ function App() {
       <div className="header">
         <h1>🎙️ crazy-phoneTTS</h1>
         <p>Sistema Text-to-Speech professionale per centralini telefonici</p>
+        <div className="connection-status">
+          {isConnected ? (
+            <span className="connected">🟢 Live connesso</span>
+          ) : (
+            <span className="disconnected">🔴 Disconnesso</span>
+          )}
+          {preferencesSaved && (
+            <span className="preferences-saved">💾 Preferenze salvate</span>
+          )}
+        </div>
       </div>
 
       {error && <div className="error">{error}</div>}
       {success && <div className="success">{success}</div>}
+
+      {/* SEZIONE CRONOLOGIA LIVE */}
+      <div className="form-card">
+        <div className="history-header">
+          <h2>📜 Cronologia Testi Live</h2>
+          <button 
+            className="toggle-button"
+            onClick={() => setShowHistory(!showHistory)}
+          >
+            {showHistory ? 'Nascondi' : 'Mostra'}
+          </button>
+        </div>
+        
+        {showHistory && (
+          <div className="history-container">
+            {textHistory.length === 0 ? (
+              <p className="no-history">Nessun testo nella cronologia</p>
+            ) : (
+              <div className="history-list">
+                {textHistory.map((item, index) => (
+                  <div key={item.id || index} className="history-item">
+                    <div className="history-content">
+                      <div className="history-text" onClick={() => setText(item.text.replace('...', ''))}>
+                        📝 {item.text}
+                      </div>
+                      <div className="history-meta">
+                        🎤 {item.voice} • ⏰ {new Date(item.timestamp).toLocaleString('it-IT', { 
+                          hour: '2-digit', 
+                          minute: '2-digit',
+                          day: '2-digit',
+                          month: '2-digit'
+                        })} • 👤 {item.user_ip}
+                      </div>
+                    </div>
+                    <button 
+                      className="use-text-button"
+                      onClick={() => setText(item.text.replace('...', ''))}
+                      title="Usa questo testo"
+                    >
+                      ↩️
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* SEZIONE LIBRERIA MUSICALE */}
       <div className="form-card">
@@ -406,6 +679,21 @@ function App() {
             </select>
             <small>Formati ottimizzati per centralini telefonici</small>
           </div>
+        </div>
+        
+        {/* Pulsante Reset Preferenze */}
+        <div className="form-group" style={{marginTop: '24px', textAlign: 'center'}}>
+          <button
+            type="button"
+            onClick={resetPreferences}
+            className="reset-btn"
+            title="Ripristina tutte le impostazioni audio ai valori di default"
+          >
+            🔄 Ripristina Impostazioni Default
+          </button>
+          <small style={{display: 'block', marginTop: '8px', color: '#64748b'}}>
+            Ripristina volumi, tempi, fade, formato e qualità ai valori di default
+          </small>
         </div>
       </div>
 
