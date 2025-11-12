@@ -63,6 +63,18 @@ function App() {
   const [fileName, setFileName] = useState('centralino_audio');
 
   // ==========================================
+  // SISTEMA AUTO-AGGIORNAMENTO
+  // ==========================================
+  
+  // Stati per aggiornamenti
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const updateWsRef = useRef(null);
+
+  // ==========================================
   // SISTEMA SALVATAGGIO PREFERENZE UTENTE
   // ==========================================
 
@@ -213,6 +225,110 @@ function App() {
     
     return () => clearTimeout(timer);
   }, [musicVolume, musicBefore, musicAfter, fadeIn, fadeOut, fadeInDuration, fadeOutDuration, outputFormat, audioQuality, fileName, selectedMusic]);
+
+  // ==========================================
+  // SISTEMA AUTO-AGGIORNAMENTO 
+  // ==========================================
+  
+  // Controlla aggiornamenti all'avvio e ogni ora
+  useEffect(() => {
+    checkForUpdates();
+    
+    // Controlla ogni ora per nuovi aggiornamenti
+    const interval = setInterval(checkForUpdates, 60 * 60 * 1000);
+    
+    return () => {
+      clearInterval(interval);
+      if (updateWsRef.current) {
+        updateWsRef.current.close();
+      }
+    };
+  }, []);
+
+  const checkForUpdates = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/version/check`);
+      const data = response.data;
+      
+      if (data.update_available) {
+        setUpdateAvailable(true);
+        setUpdateInfo(data);
+        setShowUpdateDialog(true);
+        console.log('🔄 Aggiornamento disponibile:', data.latest_version);
+      } else {
+        console.log('✅ Sistema aggiornato alla versione:', data.current_version);
+      }
+    } catch (error) {
+      console.error('❌ Errore controllo aggiornamenti:', error);
+    }
+  };
+
+  const setupUpdateWebSocket = () => {
+    try {
+      const wsUrl = API_URL.replace('http', 'ws') + '/ws/update-progress';
+      updateWsRef.current = new WebSocket(wsUrl);
+      
+      updateWsRef.current.onopen = () => {
+        console.log('✅ WebSocket aggiornamenti connesso');
+      };
+      
+      updateWsRef.current.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('📦 Progress aggiornamento:', message);
+          
+          setUpdateProgress(message);
+          
+          if (message.type === 'error') {
+            setIsUpdating(false);
+            setError('Errore durante aggiornamento: ' + message.message);
+          } else if (message.step === 'completed') {
+            setIsUpdating(false);
+            setSuccess('Aggiornamento completato! Ricarico la pagina...');
+            setTimeout(() => {
+              window.location.reload();
+            }, 3000);
+          }
+        } catch (err) {
+          console.error('❌ Errore parsing messaggio aggiornamento:', err);
+        }
+      };
+      
+      updateWsRef.current.onerror = (error) => {
+        console.error('❌ Errore WebSocket aggiornamenti:', error);
+      };
+      
+      updateWsRef.current.onclose = () => {
+        console.log('❌ WebSocket aggiornamenti disconnesso');
+      };
+    } catch (error) {
+      console.error('❌ Errore setup WebSocket aggiornamenti:', error);
+    }
+  };
+
+  const startUpdate = async () => {
+    try {
+      setIsUpdating(true);
+      setUpdateProgress({ type: 'progress', message: 'Avvio aggiornamento...', percentage: 0 });
+      setShowUpdateDialog(false);
+      
+      // Connetti WebSocket per progress
+      setupUpdateWebSocket();
+      
+      // Avvia aggiornamento
+      await axios.post(`${API_URL}/update/start`);
+      
+    } catch (error) {
+      setIsUpdating(false);
+      setError('Errore avvio aggiornamento: ' + error.message);
+      console.error('❌ Errore avvio aggiornamento:', error);
+    }
+  };
+
+  const cancelUpdate = () => {
+    setShowUpdateDialog(false);
+    setUpdateAvailable(false);
+  };
 
   const setupWebSocketConnection = () => {
     try {
@@ -439,6 +555,16 @@ function App() {
       <div className="header">
         <h1>🎙️ crazy-phoneTTS</h1>
         <p>Sistema Text-to-Speech professionale per centralini telefonici</p>
+        <div className="repo-link">
+          <a
+            href="https://github.com/ZELA2000/crazy-phoneTTS"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="github-link"
+          >
+            🔗 Progetto su GitHub
+          </a>
+        </div>
         <div className="connection-status">
           {isConnected ? (
             <span className="connected">🟢 Live connesso</span>
@@ -453,6 +579,95 @@ function App() {
 
       {error && <div className="error">{error}</div>}
       {success && <div className="success">{success}</div>}
+
+      {/* DIALOG AGGIORNAMENTO */}
+      {showUpdateDialog && (
+        <div className="update-dialog-overlay">
+          <div className="update-dialog">
+            <div className="update-header">
+              <h3>🔄 Aggiornamento Disponibile</h3>
+            </div>
+            <div className="update-content">
+              <p>
+                È disponibile una nuova versione: <strong>{updateInfo?.latest_version}</strong>
+              </p>
+              <p>Versione attuale: {updateInfo?.current_version}</p>
+              {updateInfo?.release_info?.body && (
+                <div className="release-notes">
+                  <h4>📝 Note di rilascio:</h4>
+                  <div className="release-body">
+                    {updateInfo.release_info.body.split('\n').slice(0, 5).map((line, i) => (
+                      <p key={i}>{line}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="update-actions">
+              <button 
+                className="btn btn-primary"
+                onClick={startUpdate}
+                disabled={isUpdating}
+              >
+                🚀 Aggiorna Ora
+              </button>
+              <button 
+                className="btn btn-secondary"
+                onClick={cancelUpdate}
+                disabled={isUpdating}
+              >
+                ⏭️ Più tardi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PROGRESS BAR AGGIORNAMENTO */}
+      {isUpdating && updateProgress && (
+        <div className="update-progress-overlay">
+          <div className="update-progress">
+            <div className="progress-header">
+              <h3>🔄 Aggiornamento in corso...</h3>
+            </div>
+            <div className="progress-content">
+              <div className="progress-message">
+                {updateProgress.message}
+              </div>
+              {updateProgress.percentage !== undefined && (
+                <div className="progress-bar-container">
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill"
+                      style={{ width: `${updateProgress.percentage}%` }}
+                    ></div>
+                  </div>
+                  <span className="progress-text">{updateProgress.percentage}%</span>
+                </div>
+              )}
+              <div className="progress-warning">
+                ⚠️ Non chiudere la finestra durante l'aggiornamento
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NOTIFICA AGGIORNAMENTO (quando non in dialog) */}
+      {updateAvailable && !showUpdateDialog && !isUpdating && (
+        <div className="update-notification">
+          <span className="update-icon">🔄</span>
+          <span className="update-text">
+            Aggiornamento disponibile ({updateInfo?.latest_version})
+          </span>
+          <button 
+            className="update-show-btn"
+            onClick={() => setShowUpdateDialog(true)}
+          >
+            Dettagli
+          </button>
+        </div>
+      )}
 
       {/* SEZIONE CRONOLOGIA LIVE */}
       <div className="form-card">
@@ -821,6 +1036,16 @@ function App() {
         <p>💡 Sistema TTS italiano per centralini</p>
         <p>🏢 Alimentato da Azure Speech Services (Licenza Commerciale)</p>
         <p>🎵 Con libreria musicale integrata</p>
+        <p>
+          🔗 Repository:{" "}
+          <a
+            href="https://github.com/ZELA2000/crazy-phoneTTS"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            https://github.com/ZELA2000/crazy-phoneTTS
+          </a>
+        </p>
       </div>
     </div>
   );

@@ -38,7 +38,14 @@ Sistema Text-to-Speech professionale per centralini telefonici con Azure Speech 
 - Nomi file personalizzati con data
 - Interface responsive per tutti i dispositivi
 
-## Setup Rapido (5 minuti)
+### 🔄 Sistema Auto-Aggiornamento
+- Controllo automatico nuove release GitHub
+- Notifiche in-app con changelog
+- Aggiornamento one-click con progress bar
+- Backup automatico configurazioni
+- Riavvio zero-downtime dopo aggiornamento
+
+## 🚀 Setup Rapido (5 minuti)
 
 ### 1. Prerequisiti
 - Docker e Docker Compose
@@ -198,7 +205,72 @@ New-NetFirewallRule -DisplayName "TTS Backend" -Direction Inbound -Protocol TCP 
 New-NetFirewallRule -DisplayName "TTS Frontend" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow
 ```
 
-## 🔧 Configurazione Avanzata
+## � Sistema Auto-Aggiornamento
+
+### Funzionalità Automatiche
+
+Il sistema include un **sistema di aggiornamento automatico** completo:
+
+- ✅ **Controllo automatico** nuove release GitHub ogni ora
+- ✅ **Notifiche in-app** con changelog dettagliato 
+- ✅ **Aggiornamento one-click** dall'interfaccia web
+- ✅ **Progress bar in tempo reale** durante l'aggiornamento
+- ✅ **Backup automatico** di configurazioni e upload
+- ✅ **Riavvio zero-downtime** dopo completamento
+
+### Come Funziona
+
+1. **Rilevamento**: Il sistema controlla GitHub ogni ora per nuove release
+2. **Notifica**: Compare una notifica in alto a destra nell'interfaccia
+3. **Conferma**: L'utente può vedere il changelog e confermare l'aggiornamento
+4. **Download**: Il sistema scarica automaticamente la nuova versione
+5. **Backup**: Salva configurazioni (.env) e file upload
+6. **Aggiornamento**: Sostituisce i file di sistema mantenendo i dati
+7. **Riavvio**: Ricompila e riavvia i container Docker
+8. **Verifica**: Controlla che tutto funzioni correttamente
+9. **Completamento**: Ricarica automaticamente la pagina
+
+### API Aggiornamenti
+
+```bash
+# Controlla versione attuale
+GET /version/current
+
+# Controlla aggiornamenti disponibili  
+GET /version/check
+
+# Avvia aggiornamento
+POST /update/start
+
+# WebSocket progress aggiornamento
+WS /ws/update-progress
+```
+
+### Aggiornamento Manuale
+
+Se preferisci aggiornare manualmente:
+
+```bash
+# Windows
+.\update_script.ps1
+
+# Linux/Mac
+./update_script.sh
+
+# Con versione specifica
+.\update_script.ps1 v1.2.0
+./update_script.sh v1.2.0
+```
+
+### Sicurezza
+
+- ✅ Download solo da repository GitHub ufficiale
+- ✅ Backup automatico prima di ogni aggiornamento
+- ✅ Rollback disponibile da cartella backup
+- ✅ Verifica integrità post-aggiornamento
+- ✅ Nessuna perdita di configurazioni o upload
+
+## �🔧 Configurazione Avanzata
 
 ### Variabili Environment Complete
 

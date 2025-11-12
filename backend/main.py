@@ -1227,6 +1227,190 @@ async def root():
         "list_voices": "/voices"
     }
 
+# ==========================================
+# SISTEMA AUTO-AGGIORNAMENTO
+# ==========================================
+
+# Manager per connessioni WebSocket aggiornamenti
+class UpdateConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast_progress(self, message: dict):
+        for connection in self.active_connections[:]:
+            try:
+                await connection.send_text(json.dumps(message))
+            except:
+                self.active_connections.remove(connection)
+
+update_manager = UpdateConnectionManager()
+
+def get_current_version():
+    """Legge la versione attuale dal file VERSION"""
+    # Lista dei possibili percorsi del file VERSION
+    version_paths = [
+        "VERSION",                    # Directory corrente (per sviluppo)
+        "../VERSION",                # Directory padre (se backend è in sottocartella)
+        "/app/VERSION",              # Container Docker
+        "./VERSION",                 # Esplicito directory corrente
+        os.path.join(os.path.dirname(__file__), "..", "VERSION")  # Relativo a questo file
+    ]
+    
+    for path in version_paths:
+        try:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    version = f.read().strip()
+                    if version:  # Assicura che non sia vuoto
+                        logger.debug(f"Versione letta da: {path} -> {version}")
+                        return version
+        except Exception as e:
+            logger.debug(f"Errore lettura {path}: {e}")
+            continue
+    
+    logger.warning("Nessun file VERSION trovato, usando versione di fallback")
+    return "1.0.0"
+
+async def check_github_releases():
+    """Controlla le release disponibili su GitHub"""
+    try:
+        url = "https://api.github.com/repos/ZELA2000/crazy-phoneTTS/releases/latest"
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        release_data = response.json()
+        
+        return {
+            "tag_name": release_data["tag_name"],
+            "name": release_data["name"],
+            "published_at": release_data["published_at"],
+            "body": release_data["body"],
+            "zipball_url": release_data["zipball_url"],
+            "tarball_url": release_data["tarball_url"]
+        }
+    except Exception as e:
+        logger.error(f"Errore controllo GitHub releases: {e}")
+        return None
+
+@app.get("/version/current")
+async def current_version():
+    """Restituisce la versione attuale del sistema"""
+    return {
+        "current_version": get_current_version(),
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/version/check")
+async def check_updates():
+    """Controlla se ci sono aggiornamenti disponibili"""
+    current_ver = get_current_version()
+    latest_release = await check_github_releases()
+    
+    if not latest_release:
+        return {
+            "current_version": current_ver,
+            "update_available": False,
+            "error": "Impossibile controllare aggiornamenti GitHub"
+        }
+    
+    latest_ver = latest_release["tag_name"].lstrip("v")
+    update_available = latest_ver != current_ver
+    
+    return {
+        "current_version": current_ver,
+        "latest_version": latest_ver,
+        "update_available": update_available,
+        "release_info": latest_release if update_available else None
+    }
+
+@app.websocket("/ws/update-progress")
+async def update_progress_endpoint(websocket: WebSocket):
+    """WebSocket per progress degli aggiornamenti"""
+    await update_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        update_manager.disconnect(websocket)
+
+@app.post("/update/start")
+async def start_update():
+    """Avvia il processo di aggiornamento"""
+    try:
+        # Invia notifica inizio aggiornamento
+        await update_manager.broadcast_progress({
+            "type": "progress",
+            "step": "start",
+            "message": "🚀 Avvio processo di aggiornamento...",
+            "percentage": 0
+        })
+        
+        # Controlla aggiornamenti disponibili
+        update_info = await check_updates()
+        if not update_info["update_available"]:
+            await update_manager.broadcast_progress({
+                "type": "error",
+                "message": "❌ Nessun aggiornamento disponibile"
+            })
+            raise HTTPException(status_code=400, detail="Nessun aggiornamento disponibile")
+        
+        await update_manager.broadcast_progress({
+            "type": "progress",
+            "step": "download",
+            "message": f"📦 Download versione {update_info['latest_version']}...",
+            "percentage": 20
+        })
+        
+        # Esegue lo script di aggiornamento
+        import subprocess
+        import sys
+        
+        # Determina quale script eseguire in base al sistema operativo
+        if sys.platform.startswith('win'):
+            script_path = "update_script.ps1"
+            cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", script_path, update_info["latest_version"]]
+        else:
+            script_path = "update_script.sh"
+            cmd = ["bash", script_path, update_info["latest_version"]]
+        
+        # Esegue il comando in background
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+        
+        # Monitora il progress
+        await update_manager.broadcast_progress({
+            "type": "progress",
+            "step": "executing",
+            "message": "⚙️ Esecuzione aggiornamento...",
+            "percentage": 50
+        })
+        
+        return {
+            "message": "Aggiornamento avviato",
+            "version": update_info["latest_version"],
+            "status": "in_progress"
+        }
+        
+    except Exception as e:
+        logger.error(f"Errore avvio aggiornamento: {e}")
+        await update_manager.broadcast_progress({
+            "type": "error",
+            "message": f"❌ Errore: {str(e)}"
+        })
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     logger.info(f"Avvio server su {BACKEND_HOST}:{BACKEND_PORT}")

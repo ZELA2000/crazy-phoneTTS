@@ -10,6 +10,7 @@ services:
       - ./backend/uploads:/app/uploads
       - ./backend/output:/app/output
       - crazy_phonetts_library:/app/uploads/library
+      - ./VERSION:/app/VERSION:ro  # File VERSION per controllo aggiornamenti
     environment:
       - PYTHONUNBUFFERED=1
       - AZURE_SPEECH_KEY=${AZURE_SPEECH_KEY}
