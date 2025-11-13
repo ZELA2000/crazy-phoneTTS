@@ -48,6 +48,11 @@ try {
         Write-Host "✅ Backup uploads salvato in $BackupDir"
     }
 
+    if (Test-Path "backend/output") {
+        Copy-Item "backend/output" "$BackupDir\" -Recurse -Force
+        Write-Host "✅ Backup output salvato in $BackupDir"
+    }
+
     # Step 4: Stop containers
     Write-Host "🛑 Arresto containers..."
     docker-compose down 2>$null
@@ -122,6 +127,11 @@ try {
     if (Test-Path "$BackupDir\uploads") {
         Copy-Item "$BackupDir\uploads\*" "backend\uploads\" -Recurse -Force
         Write-Host "✅ Ripristinati file uploads"
+    }
+
+    if (Test-Path "$BackupDir\output") {
+        Copy-Item "$BackupDir\output\*" "backend\output\" -Recurse -Force
+        Write-Host "✅ Ripristinati file output"
     }
 
     # Step 9: Rebuild containers

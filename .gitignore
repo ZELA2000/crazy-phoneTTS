@@ -1,4 +1,5 @@
 backend/output/
 backend/uploads/library/
+frontend/node_modules/
 .github/
 .env
