@@ -2,7 +2,7 @@ FROM python:3.10-bullseye
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get updat && apt-get install -y --no-install-recommends \
     ffmpeg \
     espeak-ng \
     libsndfile1 \
