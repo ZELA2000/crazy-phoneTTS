@@ -230,9 +230,34 @@ function App() {
   // SISTEMA AUTO-AGGIORNAMENTO 
   // ==========================================
   
-  // Controlla aggiornamenti all'avvio e ogni ora
+  // Controlla aggiornamenti all'avvio e recupera stato persistente
   useEffect(() => {
-    checkForUpdates();
+    const initializeUpdateSystem = async () => {
+      // Controlla se c'è un aggiornamento in corso dal precedente avvio
+      try {
+        const progressResponse = await axios.get(`${API_URL}/update/progress`, { timeout: 3000 });
+        const progress = progressResponse.data;
+        
+        if (progress.status === 'running') {
+          console.log('🔄 Rilevato aggiornamento in corso, riprendo monitoring...');
+          setIsUpdating(true);
+          setUpdateProgress(progress);
+          
+          // Riprende il polling
+          startProgressPolling();
+        } else if (progress.status === 'completed') {
+          console.log('🎉 Rilevato aggiornamento completato, pulisco stato...');
+          await axios.post(`${API_URL}/update/clear`).catch(() => {});
+        }
+      } catch (err) {
+        console.log('ℹ️ Nessun aggiornamento in corso o backend non raggiungibile');
+      }
+      
+      // Controlla nuovi aggiornamenti disponibili
+      checkForUpdates();
+    };
+    
+    initializeUpdateSystem();
     
     // Controlla ogni ora per nuovi aggiornamenti
     const interval = setInterval(checkForUpdates, 60 * 60 * 1000);
@@ -275,23 +300,32 @@ function App() {
       updateWsRef.current.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log('📦 Progress aggiornamento:', message);
+          console.log('� Progress WebSocket:', message);
           
+          // Aggiorna progress (WebSocket ha priorità su polling)
           setUpdateProgress(message);
           
           if (message.type === 'error') {
             setIsUpdating(false);
-            setError('Errore durante aggiornamento: ' + message.message);
-          } else if (message.step === 'completed') {
+            setError('❌ Errore durante aggiornamento: ' + message.message);
+          } else if (message.step === 'completed' || message.status === 'completed') {
             setIsUpdating(false);
-            setSuccess('Aggiornamento completato! Ricarico la pagina...');
+            setSuccess('🎉 Aggiornamento completato! Ricarico la pagina...');
             setTimeout(() => {
               window.location.reload();
-            }, 3000);
+            }, 2000);
           }
         } catch (err) {
-          console.error('❌ Errore parsing messaggio aggiornamento:', err);
+          console.error('❌ Errore parsing messaggio WebSocket:', err);
         }
+      };
+
+      updateWsRef.current.onclose = () => {
+        console.log('🔌 WebSocket aggiornamenti disconnesso (normale durante restart Docker)');
+      };
+
+      updateWsRef.current.onerror = (error) => {
+        console.log('⚠️ Errore WebSocket (normale durante aggiornamento Docker):', error);
       };
       
       updateWsRef.current.onerror = (error) => {
@@ -309,18 +343,32 @@ function App() {
   const startUpdate = async () => {
     try {
       setIsUpdating(true);
-      setUpdateProgress({ type: 'progress', message: 'Avvio aggiornamento...', percentage: 0 });
+      setUpdateProgress({ type: 'progress', message: '🚀 Avvio aggiornamento...', percentage: 0 });
       setShowUpdateDialog(false);
       
-      // Connetti WebSocket per progress
-      setupUpdateWebSocket();
+      // Tenta connessione WebSocket iniziale
+      try {
+        setupUpdateWebSocket();
+        console.log('📡 WebSocket connesso per progress iniziale');
+      } catch (wsErr) {
+        console.log('⚠️ WebSocket non disponibile, uso solo polling persistente');
+      }
       
-      // Avvia aggiornamento
+      // Avvia aggiornamento con nuovo sistema
       await axios.post(`${API_URL}/update/start`);
+      console.log('✅ Aggiornamento avviato, inizio monitoring...');
+      
+      // Avvia polling intelligente (funziona anche quando Docker si spegne)
+      const stopPolling = startProgressPolling();
+      
+      // Cleanup quando componente unmount
+      return () => {
+        stopPolling();
+      };
       
     } catch (error) {
       setIsUpdating(false);
-      setError('Errore avvio aggiornamento: ' + error.message);
+      setError('❌ Errore avvio aggiornamento: ' + error.message);
       console.error('❌ Errore avvio aggiornamento:', error);
     }
   };
@@ -328,6 +376,87 @@ function App() {
   const cancelUpdate = () => {
     setShowUpdateDialog(false);
     setUpdateAvailable(false);
+  };
+
+  // Polling per progress persistente (quando Docker è spento)
+  const pollUpdateProgress = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/update/progress`, { timeout: 3000 });
+      const progress = response.data;
+      
+      console.log('📊 Progress persistente:', progress);
+      setUpdateProgress(progress);
+      
+      if (progress.status === 'completed') {
+        setIsUpdating(false);
+        setSuccess('🎉 Aggiornamento completato! Ricarico la pagina...');
+        // Pulisce lo stato e ricarica
+        await axios.post(`${API_URL}/update/clear`).catch(() => {}); 
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+        return false; // Stop polling
+      } else if (progress.status === 'error') {
+        setIsUpdating(false);
+        setError('❌ Errore durante aggiornamento: ' + progress.message);
+        return false; // Stop polling
+      } else if (progress.status === 'idle') {
+        // Nessun aggiornamento in corso
+        return false; // Stop polling
+      }
+      
+      return true; // Continue polling
+    } catch (error) {
+      console.log('🔍 Backend non raggiungibile, continuo polling...');
+      return true; // Continue polling se backend non risponde
+    }
+  };
+
+  // Avvia polling con fallback intelligente
+  const startProgressPolling = () => {
+    let pollInterval;
+    let wsRetryTimeout;
+    let backendOnline = false;
+    
+    const poll = async () => {
+      const shouldContinue = await pollUpdateProgress();
+      
+      if (!shouldContinue) {
+        clearInterval(pollInterval);
+        return;
+      }
+      
+      // Tenta riconnessione WebSocket se backend torna online
+      if (!backendOnline) {
+        try {
+          await axios.get(`${API_URL}/health`, { timeout: 2000 });
+          backendOnline = true;
+          console.log('🔄 Backend rilevato online, tentativo riconnessione WebSocket...');
+          
+          // Ritarda leggermente la riconnessione WebSocket
+          wsRetryTimeout = setTimeout(() => {
+            try {
+              setupUpdateWebSocket();
+            } catch (err) {
+              console.log('⚠️ Riconnessione WebSocket fallita, continuo con polling');
+            }
+          }, 2000);
+          
+        } catch (err) {
+          // Backend ancora offline
+        }
+      }
+    };
+    
+    // Polling ogni 2 secondi
+    poll(); // Primo check immediato
+    pollInterval = setInterval(poll, 2000);
+    
+    // Cleanup
+    return () => {
+      clearInterval(pollInterval);
+      clearTimeout(wsRetryTimeout);
+    };
   };
 
   const setupWebSocketConnection = () => {

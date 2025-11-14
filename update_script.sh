@@ -23,6 +23,48 @@ print_error() {
 print_warning() {
     echo -e "\033[1;33m⚠️ $1\033[0m"
 }
+print_info() {
+    echo -e "\033[1;36mℹ️ $1\033[0m"
+}
+print_gray() {
+    echo -e "\033[1;30m$1\033[0m"
+}
+
+# Funzione per pulire backup vecchi (mantiene solo i 10 più recenti)
+cleanup_old_backups() {
+    print_step "🧹 Pulizia backup vecchi..."
+    
+    # Conta backup esistenti
+    backup_count=$(find . -maxdepth 1 -type d -name "backup_*" 2>/dev/null | wc -l)
+    
+    if [ "$backup_count" -gt 10 ]; then
+        print_warning "Trovati $backup_count backup, rimuovo i più vecchi..."
+        
+        # Lista backup ordinati per data (più vecchi prima) - alternativa per sistemi senza -printf
+        if find . -maxdepth 1 -name "backup_*" -printf '%T@ %p\n' &>/dev/null; then
+            # Usa -printf se supportato
+            old_backups=$(find . -maxdepth 1 -type d -name "backup_*" -printf '%T@ %p\n' | sort -n | head -n $((backup_count - 10)) | cut -d' ' -f2-)
+        else
+            # Fallback per sistemi senza -printf (es. macOS)
+            old_backups=$(ls -dt backup_* 2>/dev/null | tail -n +11)
+        fi
+        
+        if [ -n "$old_backups" ]; then
+            echo "$old_backups" | while IFS= read -r backup_dir; do
+                if [ -d "$backup_dir" ]; then
+                    rm -rf "$backup_dir"
+                    backup_name=$(basename "$backup_dir")
+                    print_gray "  🗑️ Rimosso: $backup_name"
+                fi
+            done
+            
+            new_count=$(find . -maxdepth 1 -type d -name "backup_*" 2>/dev/null | wc -l)
+            print_success "Backup ridotti da $backup_count a $new_count (mantenuti i 10 più recenti)"
+        fi
+    else
+        print_success "Backup attuali: $backup_count (limite: 10) - nessuna pulizia necessaria"
+    fi
+}
 
 cd "$PROJECT_DIR"
 
@@ -62,6 +104,9 @@ if [ -d "backend/uploads" ]; then
     cp -r "backend/uploads" "$BACKUP_DIR/"
     print_success "Backup uploads salvato in $BACKUP_DIR"
 fi
+
+# Step 3.1: Pulizia backup vecchi
+cleanup_old_backups
 
 # Step 4: Stop containers
 print_step "🛑 Arresto containers..."

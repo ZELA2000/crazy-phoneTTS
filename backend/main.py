@@ -17,6 +17,9 @@ import aiofiles
 import requests
 import io
 from datetime import datetime
+import threading
+import subprocess
+import sys
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +41,9 @@ else:
     logger.info("Azure Speech Services configurato correttamente")
 
 logger.info(f"Server configurato per ascoltare su: {BACKEND_HOST}:{BACKEND_PORT}")
+
+# File per progress persistente durante aggiornamenti
+UPDATE_PROGRESS_FILE = "update_progress.json"
 
 # ==========================================
 # SISTEMA CRONOLOGIA TESTI REAL-TIME
@@ -73,6 +79,91 @@ class ConnectionManager:
                 self.disconnect(dead)
 
 manager = ConnectionManager()
+
+# ==========================================
+# FUNZIONI HELPER PROGRESS PERSISTENTE
+# ==========================================
+
+def save_update_progress(progress_data):
+    """Salva il progress dell'aggiornamento su file"""
+    try:
+        progress_data["timestamp"] = datetime.now().isoformat()
+        with open(UPDATE_PROGRESS_FILE, 'w') as f:
+            json.dump(progress_data, f, indent=2)
+        logger.info(f"Progress salvato: {progress_data.get('message', 'N/A')}")
+    except Exception as e:
+        logger.error(f"Errore salvataggio progress: {e}")
+
+def load_update_progress():
+    """Carica il progress dell'aggiornamento dal file"""
+    try:
+        if os.path.exists(UPDATE_PROGRESS_FILE):
+            with open(UPDATE_PROGRESS_FILE, 'r') as f:
+                return json.load(f)
+        return None
+    except Exception as e:
+        logger.error(f"Errore caricamento progress: {e}")
+        return None
+
+def clear_update_progress():
+    """Pulisce il file di progress"""
+    try:
+        if os.path.exists(UPDATE_PROGRESS_FILE):
+            os.remove(UPDATE_PROGRESS_FILE)
+        logger.info("File progress pulito")
+    except Exception as e:
+        logger.error(f"Errore pulizia progress: {e}")
+
+def run_update_script_background(script_path, version, progress_callback=None):
+    """Crea il file di richiesta per l'aggiornamento host-side"""
+    try:
+        # Salva progress iniziale
+        save_update_progress({
+            "type": "progress",
+            "step": "script_start", 
+            "message": "🚀 Preparazione aggiornamento host-side...",
+            "percentage": 10,
+            "status": "running"
+        })
+        
+        # Crea file di richiesta aggiornamento per l'host
+        update_request = {
+            "version": version,
+            "timestamp": datetime.now().isoformat(),
+            "script": script_path,
+            "status": "requested"
+        }
+        
+        # Salva file di richiesta nella directory progetto (accessibile all'host)
+        request_file = "/app/project/update_request.json"
+        with open(request_file, 'w') as f:
+            json.dump(update_request, f, indent=2)
+        
+        logger.info(f"File di richiesta aggiornamento creato: {request_file}")
+        logger.info(f"Versione richiesta: {version}")
+        
+        # Aggiorna progress per indicare che l'host deve prendere il controllo
+        save_update_progress({
+            "type": "progress",
+            "step": "waiting_host",
+            "message": "⏳ In attesa che l'host esegua l'aggiornamento...",
+            "percentage": 20,
+            "status": "waiting_host",
+            "info": "L'aggiornamento deve essere completato dall'host, non dal container"
+        })
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Errore creazione richiesta aggiornamento: {e}")
+        save_update_progress({
+            "type": "error",
+            "step": "error",
+            "message": f"❌ Errore preparazione aggiornamento: {str(e)}",
+            "percentage": 0,
+            "status": "error"
+        })
+        return False
 
 # Database per cronologia testi
 def init_database():
@@ -1339,68 +1430,90 @@ async def update_progress_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         update_manager.disconnect(websocket)
 
+@app.get("/update/progress")
+async def get_update_progress():
+    """Ottiene il progress dell'aggiornamento dal file persistente"""
+    try:
+        progress = load_update_progress()
+        if progress is None:
+            return {
+                "status": "idle",
+                "message": "Nessun aggiornamento in corso",
+                "percentage": 0
+            }
+        return progress
+    except Exception as e:
+        logger.error(f"Errore lettura progress: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/update/clear")
+async def clear_update_status():
+    """Pulisce lo stato di aggiornamento"""
+    try:
+        clear_update_progress()
+        return {"message": "Stato aggiornamento pulito"}
+    except Exception as e:
+        logger.error(f"Errore pulizia progress: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/update/start")
 async def start_update():
-    """Avvia il processo di aggiornamento"""
+    """Avvia il processo di aggiornamento con progress persistente"""
     try:
-        # Invia notifica inizio aggiornamento
-        await update_manager.broadcast_progress({
+        # Pulisce stato precedente
+        clear_update_progress()
+        
+        # Salva progress iniziale
+        save_update_progress({
             "type": "progress",
             "step": "start",
             "message": "🚀 Avvio processo di aggiornamento...",
-            "percentage": 0
+            "percentage": 0,
+            "status": "starting"
         })
+        
+        # Invia anche via WebSocket se possibile
+        try:
+            await update_manager.broadcast_progress({
+                "type": "progress",
+                "step": "start",
+                "message": "🚀 Avvio processo di aggiornamento...",
+                "percentage": 0
+            })
+        except:
+            pass  # Continua anche se WebSocket non funziona
         
         # Controlla aggiornamenti disponibili
         update_info = await check_updates()
         if not update_info["update_available"]:
-            await update_manager.broadcast_progress({
+            save_update_progress({
                 "type": "error",
-                "message": "❌ Nessun aggiornamento disponibile"
+                "step": "error",
+                "message": "❌ Nessun aggiornamento disponibile",
+                "status": "error"
             })
             raise HTTPException(status_code=400, detail="Nessun aggiornamento disponibile")
         
-        await update_manager.broadcast_progress({
+        save_update_progress({
             "type": "progress",
-            "step": "download",
-            "message": f"📦 Download versione {update_info['latest_version']}...",
-            "percentage": 20
+            "step": "preparing",
+            "message": f"📦 Preparazione aggiornamento versione {update_info['latest_version']}...",
+            "percentage": 5,
+            "status": "running"
         })
         
-        # Esegue lo script di aggiornamento
-        import subprocess
-        import sys
+        # Determina quale script eseguire (forza PowerShell su host Windows)
+        # Nota: Il container è Linux ma l'host può essere Windows
+        script_path = "update_script.ps1"  # Default PowerShell per questo deployment
         
-        # Determina quale script eseguire in base al sistema operativo
-        if sys.platform.startswith('win'):
-            script_path = "update_script.ps1"
-            cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", script_path, update_info["latest_version"]]
-        else:
-            script_path = "update_script.sh"
-            cmd = ["bash", script_path, update_info["latest_version"]]
-        
-        # Esegue il comando in background
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            universal_newlines=True
-        )
-        
-        # Monitora il progress
-        await update_manager.broadcast_progress({
-            "type": "progress",
-            "step": "executing",
-            "message": "⚙️ Esecuzione aggiornamento...",
-            "percentage": 50
-        })
+        # Avvia lo script in background con tracking persistente
+        run_update_script_background(script_path, update_info["latest_version"])
         
         return {
-            "message": "Aggiornamento avviato",
+            "message": "Aggiornamento avviato con progress persistente",
             "version": update_info["latest_version"],
-            "status": "in_progress"
+            "status": "in_progress",
+            "info": "Usa GET /update/progress per monitorare lo stato"
         }
         
     except Exception as e:
