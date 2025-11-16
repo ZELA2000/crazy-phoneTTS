@@ -15,7 +15,9 @@ const DEFAULT_PREFERENCES = {
   outputFormat: 'wav',
   audioQuality: 'pcm',
   fileName: 'centralino_audio',
-  selectedMusic: ''
+  selectedMusic: '',
+  ttsService: 'edge',  // Servizio TTS di default (edge o azure)
+  ttsVoice: 'it-IT-ElsaNeural'  // Voce di default
 };
 
 const STORAGE_KEY = 'crazy-phonetts-preferences';
@@ -32,6 +34,8 @@ export const usePreferences = () => {
   const [audioQuality, setAudioQuality] = useState(DEFAULT_PREFERENCES.audioQuality);
   const [fileName, setFileName] = useState(DEFAULT_PREFERENCES.fileName);
   const [selectedMusic, setSelectedMusic] = useState(DEFAULT_PREFERENCES.selectedMusic);
+  const [ttsService, setTtsService] = useState(DEFAULT_PREFERENCES.ttsService);
+  const [ttsVoice, setTtsVoice] = useState(DEFAULT_PREFERENCES.ttsVoice);
   const [preferencesSaved, setPreferencesSaved] = useState(false);
 
   // Carica preferenze all'avvio
@@ -46,7 +50,7 @@ export const usePreferences = () => {
     }, 500); // Debounce di 500ms
     
     return () => clearTimeout(timer);
-  }, [musicVolume, musicBefore, musicAfter, fadeIn, fadeOut, fadeInDuration, fadeOutDuration, outputFormat, audioQuality, fileName, selectedMusic]);
+  }, [musicVolume, musicBefore, musicAfter, fadeIn, fadeOut, fadeInDuration, fadeOutDuration, outputFormat, audioQuality, fileName, selectedMusic, ttsService, ttsVoice]);
 
   const savePreferences = () => {
     const preferences = {
@@ -60,7 +64,9 @@ export const usePreferences = () => {
       outputFormat,
       audioQuality,
       fileName,
-      selectedMusic
+      selectedMusic,
+      ttsService,
+      ttsVoice
     };
     
     try {
@@ -92,6 +98,8 @@ export const usePreferences = () => {
         setAudioQuality(preferences.audioQuality ?? DEFAULT_PREFERENCES.audioQuality);
         setFileName(preferences.fileName ?? DEFAULT_PREFERENCES.fileName);
         setSelectedMusic(preferences.selectedMusic ?? DEFAULT_PREFERENCES.selectedMusic);
+        setTtsService(preferences.ttsService ?? DEFAULT_PREFERENCES.ttsService);
+        setTtsVoice(preferences.ttsVoice ?? DEFAULT_PREFERENCES.ttsVoice);
         
         return true;
       }
@@ -117,6 +125,8 @@ export const usePreferences = () => {
       setAudioQuality(DEFAULT_PREFERENCES.audioQuality);
       setFileName(DEFAULT_PREFERENCES.fileName);
       setSelectedMusic(DEFAULT_PREFERENCES.selectedMusic);
+      setTtsService(DEFAULT_PREFERENCES.ttsService);
+      setTtsVoice(DEFAULT_PREFERENCES.ttsVoice);
       
       console.log('🔄 Preferenze ripristinate ai default');
       return true;
@@ -139,6 +149,8 @@ export const usePreferences = () => {
     audioQuality,
     fileName,
     selectedMusic,
+    ttsService,
+    ttsVoice,
     preferencesSaved,
     
     // Setters
@@ -153,6 +165,8 @@ export const usePreferences = () => {
     setAudioQuality,
     setFileName,
     setSelectedMusic,
+    setTtsService,
+    setTtsVoice,
     
     // Metodi
     resetPreferences

@@ -22,11 +22,14 @@ const MusicLibrary = ({
         <input
           id="music-upload"
           type="file"
-          accept="audio/mp3,audio/wav,audio/ogg"
+          accept="audio/*"
           onChange={(e) => onUploadMusic(e.target.files[0])}
           disabled={uploadingMusic}
         />
         {uploadingMusic && <div className="loading">📤 Caricamento...</div>}
+        <small style={{ display: 'block', marginTop: '4px', color: '#666' }}>
+          Supportati tutti i formati audio: MP3, WAV, OGG, FLAC, M4A, AAC, WMA, ecc.
+        </small>
       </div>
 
       {/* Lista Musica */}

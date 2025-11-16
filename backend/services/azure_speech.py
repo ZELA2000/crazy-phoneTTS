@@ -190,6 +190,8 @@ class AzureSpeechService:
         self.speech_key = speech_key
         self.speech_region = speech_region
         self.speech_endpoint = speech_endpoint
+        self._voices_cache = None
+        self._voices_cache_initialized = False
 
     def _create_speech_config(self) -> speechsdk.SpeechConfig:
         """
@@ -340,3 +342,74 @@ class AzureSpeechService:
                 logger.error(f"Dettagli errore: {details.error_details}")
         else:
             logger.error(f"Sintesi fallita: {result.reason}")
+
+    async def get_available_voices(self) -> Dict[str, str]:
+        """
+        Ottiene le voci italiane disponibili dall'API Azure Speech.
+
+        Returns:
+            Dizionario {short_name: display_name}
+        """
+        if self._voices_cache_initialized:
+            return self._voices_cache
+
+        try:
+            logger.info("📥 Caricamento voci italiane da Azure Speech API...")
+
+            # Per get_voices usa solo key e region, non endpoint personalizzato
+            speech_config = speechsdk.SpeechConfig(
+                subscription=self.speech_key,
+                region=self.speech_region
+            )
+
+            # Crea un synthesizer per ottenere la lista delle voci
+            synthesizer = speechsdk.SpeechSynthesizer(
+                speech_config=speech_config,
+                audio_config=None
+            )
+
+            # Ottieni tutte le voci
+            result = synthesizer.get_voices_async().get()
+
+            if result.reason == speechsdk.ResultReason.VoicesListRetrieved:
+                # Filtra solo voci italiane neurali
+                italian_voices = [
+                    v for v in result.voices
+                    if v.locale.startswith('it-IT') and 'Neural' in v.short_name
+                ]
+
+                # Debug: mostra prima voce
+                if italian_voices:
+                    logger.info(
+                        f"🔍 Prima voce Azure: {italian_voices[0].short_name} - {italian_voices[0].local_name}")
+
+                # Crea dizionario {short_name: display_name}
+                self._voices_cache = {
+                    voice.short_name: f"{voice.local_name} ({voice.gender.name})"
+                    for voice in italian_voices
+                }
+
+                self._voices_cache_initialized = True
+                logger.info(
+                    f"✅ Caricate {len(self._voices_cache)} voci italiane da Azure Speech")
+
+            else:
+                logger.error(
+                    f"❌ Errore caricamento voci Azure: {result.reason}")
+                # Fallback a voci base
+                self._voices_cache = {
+                    "it-IT-ElsaNeural": "Elsa (Female)",
+                    "it-IT-DiegoNeural": "Diego (Male)"
+                }
+                self._voices_cache_initialized = True
+
+        except Exception as e:
+            logger.error(f"❌ Errore caricamento voci Azure Speech: {e}")
+            # Fallback a voci base
+            self._voices_cache = {
+                "it-IT-ElsaNeural": "Elsa (Female)",
+                "it-IT-DiegoNeural": "Diego (Male)"
+            }
+            self._voices_cache_initialized = True
+
+        return self._voices_cache

@@ -10,7 +10,7 @@ const HistoryPanel = ({ textHistory, isConnected, onSelectText }) => {
   return (
     <div className="form-card">
       <div className="history-header">
-        <h2>📜 Cronologia Testi Live</h2>
+        <h2>📜 Cronologia Testi Live (Beta)</h2>
         <button 
           className="toggle-button"
           onClick={() => setShowHistory(!showHistory)}
@@ -25,8 +25,8 @@ const HistoryPanel = ({ textHistory, isConnected, onSelectText }) => {
             <p className="no-history">Nessun testo nella cronologia</p>
           ) : (
             <div className="history-list">
-              {textHistory.map((item, index) => (
-                <div key={item.id || index} className="history-item">
+              {textHistory.map((item) => (
+                <div key={item.id} className="history-item">
                   <div className="history-content">
                     <div 
                       className="history-text" 

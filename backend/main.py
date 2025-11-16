@@ -42,6 +42,7 @@ from core.config import ApplicationConfiguration
 from models.history import TextHistoryDatabase
 from models.voice_catalog import VoiceCatalog
 from services.azure_speech import AzureSpeechService, SSMLParameters, VoiceStyle
+from services.edge_tts_service import EdgeTTSService
 from managers.websocket_manager import HistoryUpdateManager, UpdateProgressManager as WebSocketUpdateProgressManager
 from managers.update_manager import UpdateNotificationManager
 from managers.audio_processor import AudioConverter, AudioQualitySpec
@@ -85,6 +86,9 @@ azure_speech_service = AzureSpeechService(
     speech_endpoint=AZURE_SPEECH_ENDPOINT
 ) if AZURE_SPEECH_KEY else None
 
+# Servizio Edge TTS (gratuito, sempre disponibile)
+edge_tts_service = EdgeTTSService()
+
 # Gestore per cronologia testi real-time
 manager = HistoryUpdateManager()
 
@@ -108,6 +112,9 @@ version_manager = VersionManager(
 
 # Catalogo voci
 voice_catalog = VoiceCatalog()
+
+# Flag per tracciare disponibilità reale di Azure Speech
+azure_speech_available = False
 
 
 # Funzioni wrapper per compatibilità con codice esistente
@@ -168,6 +175,8 @@ AZURE_VOICES = {
 @app.on_event("startup")
 async def startup_event():
     """Inizializzazione e validazione della configurazione Azure Speech Services"""
+    global azure_speech_available
+
     logger.info("🚀 crazy-phoneTTS Server Starting...")
     logger.info(f"📍 Azure Speech Region: {AZURE_SPEECH_REGION}")
 
@@ -177,14 +186,17 @@ async def startup_event():
         # Test della connessione Azure Speech
         try:
             await test_azure_speech_connection()
+            azure_speech_available = True
             logger.info("🎤 Azure Speech Services: ✓ Connection verified")
         except Exception as e:
+            azure_speech_available = False
             logger.error(f"❌ Azure Speech Services: Connection failed - {e}")
-            logger.warning("⚠️  TTS service may not work properly")
+            logger.warning(
+                "⚠️  Azure Speech non disponibile, usa Edge TTS (gratuito)")
     else:
-        logger.error("❌ Azure Speech API Key: Missing")
-        logger.error(
-            "📚 Setup guide: https://docs.microsoft.com/azure/cognitive-services/speech-service/get-started")
+        azure_speech_available = False
+        logger.warning(
+            "⚠️  Azure Speech API Key non configurata - usa Edge TTS (gratuito)")
 
     logger.info("✅ TTS server ready for commercial use!")
 
@@ -495,33 +507,84 @@ async def generate_audio(
                 raise HTTPException(
                     status_code=404, detail="File audio della libreria non trovato")
         elif music_file and music_file.filename:
+            # Salva file temporaneo con estensione originale
+            original_ext = os.path.splitext(music_file.filename)[1]
+            temp_music_path = f"uploads/music_{session_id}{original_ext}"
             music_path = f"uploads/music_{session_id}.wav"
-            with open(music_path, "wb") as buffer:
+
+            # Salva file caricato
+            with open(temp_music_path, "wb") as buffer:
                 shutil.copyfileobj(music_file.file, buffer)
+
+            # Converti in WAV se necessario (pydub supporta tutti i formati)
+            try:
+                if original_ext.lower() != '.wav':
+                    logger.info(f"🔄 Conversione {original_ext} → WAV")
+                    audio = AudioSegment.from_file(temp_music_path)
+                    audio.export(music_path, format="wav")
+                    os.remove(temp_music_path)  # Rimuovi file temporaneo
+                else:
+                    # È già WAV, rinomina
+                    os.rename(temp_music_path, music_path)
+            except Exception as e:
+                logger.error(f"❌ Errore conversione audio: {e}")
+                if os.path.exists(temp_music_path):
+                    os.remove(temp_music_path)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Formato audio non supportato o file corrotto: {str(e)}"
+                )
 
         # Salva file voce di riferimento se presente
         if voice_reference and voice_reference.filename:
             with open(voice_ref_path, "wb") as buffer:
                 shutil.copyfileobj(voice_reference.file, buffer)
 
-        # Genera TTS usando Azure Speech Services
+        # Genera TTS usando il servizio selezionato
         logger.info(
-            f"🎤 Generating TTS for text: {text[:50]}... using Azure Speech Services")
+            f"🎤 Generating TTS for text: {text[:50]}... using {tts_service}")
 
-        # Opzioni SSML personalizzate per centralini
-        ssml_options = {
-            'rate': 'medium',  # Velocità moderata per chiarezza
-            'pitch': 'medium',  # Tono medio per professionalità
-            'volume': 'loud',  # Volume alto per centralini
-            # Stile servizio clienti
-            'style': 'customerservice' if 'Neural' in edge_voice else None,
-            'emphasis': 'moderate'  # Enfasi moderata
-        }
+        if tts_service == "edge":
+            # Usa Edge TTS (gratuito)
+            # Converti i parametri SSML in parametri Edge TTS
+            rate_map = {'x-slow': '-50%', 'slow': '-25%',
+                        'medium': '+0%', 'fast': '+25%', 'x-fast': '+50%'}
+            volume_map = {'silent': '-100%', 'soft': '-50%',
+                          'medium': '+0%', 'loud': '+50%', 'x-loud': '+100%'}
 
-        success = await generate_azure_speech(text, edge_voice, tts_path, ssml_options)
+            rate = rate_map.get('medium', '+0%')
+            volume = volume_map.get('loud', '+50%')
+
+            success = await edge_tts_service.generate_speech(
+                text=text,
+                voice=edge_voice,
+                output_path=tts_path,
+                rate=rate,
+                volume=volume,
+                pitch="+0Hz"
+            )
+        else:
+            # Usa Azure Speech Services (richiede API key)
+            if not azure_speech_service:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Azure Speech Service non configurato. Usa tts_service='edge' per il servizio gratuito."
+                )
+
+            # Opzioni SSML personalizzate per centralini
+            ssml_options = {
+                'rate': 'medium',
+                'pitch': 'medium',
+                'volume': 'loud',
+                'style': 'customerservice' if 'Neural' in edge_voice else None,
+                'emphasis': 'moderate'
+            }
+
+            success = await generate_azure_speech(text, edge_voice, tts_path, ssml_options)
+
         if not success:
             raise HTTPException(
-                status_code=500, detail="Azure Speech generation failed")
+                status_code=500, detail=f"{tts_service.upper()} TTS generation failed")
 
         # Salva nella cronologia e notifica utenti connessi
         try:
@@ -633,7 +696,6 @@ async def generate_audio(
         if not clean_name:
             clean_name = "centralino_audio"
 
-        from datetime import datetime
         date_str = datetime.now().strftime("%y%m%d")
 
         return FileResponse(
@@ -667,10 +729,15 @@ async def upload_music_to_library(
     if not music_file.filename:
         raise HTTPException(status_code=400, detail="File musicale richiesto")
 
-    if music_file.content_type not in MusicLibrary.SUPPORTED_FORMATS:
+    # Verifica che sia un file audio (accetta qualsiasi tipo audio/*)
+    content_type = music_file.content_type or ''
+    is_audio = content_type.startswith(
+        'audio/') or content_type.startswith('application/ogg')
+
+    if not is_audio:
         raise HTTPException(
             status_code=400,
-            detail=f"Formato non supportato. Supportati: {', '.join(MusicLibrary.SUPPORTED_FORMATS)}"
+            detail=f"File non audio. Tipo ricevuto: {content_type}"
         )
 
     try:
@@ -878,6 +945,46 @@ async def list_voices():
     return {"voices": voices}
 
 
+@app.get("/tts/services")
+async def get_tts_services():
+    """Restituisce i servizi TTS disponibili con le loro voci"""
+    services = {}
+
+    # Edge TTS (sempre disponibile, gratuito)
+    edge_voices = await edge_tts_service.get_available_voices()
+    services["edge"] = {
+        "name": "Microsoft Edge TTS",
+        "description": "Servizio gratuito senza API key",
+        "available": True,
+        "voices": edge_voices,
+        "default_voice": "it-IT-ElsaNeural"
+    }
+
+    # Azure Speech Services (richiede API key e connessione valida)
+    azure_voices = {}
+    azure_available = azure_speech_service is not None and azure_speech_available
+
+    if azure_available:
+        try:
+            azure_voices = await azure_speech_service.get_available_voices()
+        except Exception as e:
+            logger.error(f"Errore caricamento voci Azure: {e}")
+            azure_available = False
+
+    services["azure"] = {
+        "name": "Azure Speech Services",
+        "description": "Servizio premium con voci neurali avanzate" if azure_available else "Non disponibile - configura AZURE_SPEECH_KEY",
+        "available": azure_available,
+        "voices": azure_voices,
+        "default_voice": "it-IT-ElsaNeural"
+    }
+
+    return {
+        "services": services,
+        "default_service": "edge"  # Sempre Edge come default
+    }
+
+
 @app.get("/")
 async def root():
     return {
@@ -885,7 +992,8 @@ async def root():
         "docs": "/docs",
         "health": "/health",
         "voice_training": "/train-voice",
-        "list_voices": "/voices"
+        "list_voices": "/voices",
+        "tts_services": "/tts/services"
     }
 
 # ==========================================

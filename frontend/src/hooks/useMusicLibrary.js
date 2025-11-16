@@ -27,9 +27,9 @@ export const useMusicLibrary = (selectedMusic, setSelectedMusic) => {
   const uploadMusic = async (file) => {
     if (!file) return { success: false, error: 'Nessun file selezionato' };
 
-    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/ogg'];
-    if (!allowedTypes.includes(file.type)) {
-      return { success: false, error: 'Formato file non supportato. Usa MP3, WAV o OGG.' };
+    // Verifica che sia un file audio (qualsiasi formato)
+    if (!file.type.startsWith('audio/')) {
+      return { success: false, error: 'Il file selezionato non è un file audio.' };
     }
 
     const maxSize = 50 * 1024 * 1024; // 50MB
@@ -45,14 +45,14 @@ export const useMusicLibrary = (selectedMusic, setSelectedMusic) => {
       const name = file.name.replace(/\.[^/.]+$/, '');
       formData.append('name', name);
 
-      const response = await axios.post(`${API_URL}/music-library/upload`, formData, {
+      await axios.post(`${API_URL}/music-library/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
       await loadMusicLibrary();
       return { success: true, message: 'Musica caricata con successo!' };
     } catch (err) {
-      console.error('Errore upload:', err);
+      console.error('Errore upload musica:', err);
       return { 
         success: false, 
         error: err.response?.data?.detail || 'Errore durante il caricamento della musica' 

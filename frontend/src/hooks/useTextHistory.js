@@ -14,7 +14,14 @@ export const useTextHistory = () => {
     if (message.type === 'history_update') {
       setTextHistory(message.data);
     } else if (message.type === 'new_text') {
-      setTextHistory(prev => [message.data, ...prev.slice(0, 9)]);
+      // Evita duplicati verificando se l'ID esiste già
+      setTextHistory(prev => {
+        const exists = prev.some(item => item.id === message.data.id);
+        if (exists) {
+          return prev; // Non aggiungere se esiste già
+        }
+        return [message.data, ...prev.slice(0, 9)];
+      });
     }
   };
 

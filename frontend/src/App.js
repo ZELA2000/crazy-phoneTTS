@@ -15,6 +15,7 @@ import MusicLibrary from './components/MusicLibrary';
 import AudioControls from './components/AudioControls';
 import OutputSettings from './components/OutputSettings';
 import TTSGenerator from './components/TTSGenerator';
+import TTSServiceSelector from './components/TTSServiceSelector';
 
 /**
  * crazy-phoneTTS - Sistema Text-to-Speech Professionale
@@ -142,6 +143,14 @@ function App() {
         onSelectText={(text) => {}} // Gestito direttamente in TTSGenerator
       />
 
+      {/* SELEZIONE SERVIZIO TTS E VOCE */}
+      <TTSServiceSelector
+        selectedService={preferences.ttsService}
+        selectedVoice={preferences.ttsVoice}
+        onServiceChange={preferences.setTtsService}
+        onVoiceChange={preferences.setTtsVoice}
+      />
+
       {/* LIBRERIA MUSICALE */}
       <MusicLibrary
         musicLibrary={musicLibrary.musicLibrary}
@@ -192,9 +201,6 @@ function App() {
 
       {/* FOOTER */}
       <div className="footer">
-        <p>💡 Sistema TTS italiano per centralini</p>
-        <p>🏢 Alimentato da Azure Speech Services (Licenza Commerciale)</p>
-        <p>🎵 Con libreria musicale integrata</p>
         <p>
           🔗 Repository:{" "}
           <a
@@ -205,6 +211,7 @@ function App() {
             https://github.com/ZELA2000/crazy-phoneTTS
           </a>
         </p>
+        <p>copyright ©{new Date().getFullYear()} ZELA2000</p>
       </div>
     </div>
   );

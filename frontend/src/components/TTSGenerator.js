@@ -28,8 +28,8 @@ const TTSGenerator = ({ preferences, audioUrl, setAudioUrl }) => {
     try {
       const formData = new FormData();
       formData.append('text', text);
-      formData.append('tts_service', 'azure');
-      formData.append('edge_voice', 'it-IT-ElsaNeural');
+      formData.append('tts_service', preferences.ttsService);
+      formData.append('edge_voice', preferences.ttsVoice);
       formData.append('language', 'it');
 
       // Parametri musicali

@@ -174,6 +174,19 @@ class VoiceCatalog:
             for voice in self.ITALIAN_VOICES.values()
         ]
 
+    def get_voices_dict(self) -> Dict[str, str]:
+        """
+        Restituisce le voci in formato dizionario {voice_id: display_name}.
+        Compatibile con il formato di Edge TTS.
+
+        Returns:
+            Dizionario {short_name: display_name}
+        """
+        return {
+            voice.short_name: f"{voice.display_name} ({voice.gender}, Italiano)"
+            for voice in self.ITALIAN_VOICES.values()
+        }
+
     def get_voice(self, short_name: str) -> Optional[Dict]:
         """
         Ottiene le informazioni di una voce specifica.

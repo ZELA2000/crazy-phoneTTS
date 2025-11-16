@@ -24,8 +24,35 @@ class MusicLibrary:
     le canzoni disponibili e rimuoverle quando necessario.
     """
 
-    SUPPORTED_FORMATS = ['audio/mp3', 'audio/wav',
-                         'audio/mpeg', 'audio/ogg', 'audio/mp4']
+    SUPPORTED_FORMATS = [
+        # Formati compressi comuni
+        'audio/mp3', 'audio/mpeg',          # MP3
+        'audio/mp4', 'audio/m4a',           # M4A/AAC
+        'audio/ogg', 'audio/vorbis',        # OGG Vorbis
+        'audio/opus',                        # Opus
+        'audio/webm',                        # WebM
+        'audio/flac',                        # FLAC (lossless)
+        'audio/aac', 'audio/aacp',          # AAC
+        'audio/vnd.dlna.adts',              # AAC ADTS
+        'audio/x-m4a',                       # M4A alternativo
+        'audio/wma',                         # Windows Media Audio
+
+        # Formati non compressi
+        'audio/wav', 'audio/wave', 'audio/x-wav',  # WAV
+        'audio/aiff', 'audio/x-aiff',       # AIFF
+        'audio/pcm',                         # PCM raw
+
+        # Altri formati
+        'audio/3gpp', 'audio/3gpp2',        # 3GP
+        'audio/amr',                         # AMR
+        'audio/basic',                       # AU/SND
+        'audio/x-ms-wma',                    # WMA alternativo
+
+        # MIME types generici
+        'application/ogg',                   # OGG container
+        'application/octet-stream',          # Generico
+        'audio/*'                            # Accetta qualsiasi audio
+    ]
 
     def __init__(self, library_directory: str = "uploads/library"):
         """
@@ -59,10 +86,15 @@ class MusicLibrary:
         Raises:
             ValueError: Se il formato del file non è supportato
         """
-        if content_type not in self.SUPPORTED_FORMATS:
+        # Accetta qualsiasi tipo MIME che inizia con 'audio/' o è nella lista
+        is_audio = content_type.startswith(
+            'audio/') or content_type.startswith('application/ogg')
+        is_in_list = content_type in self.SUPPORTED_FORMATS
+
+        if not (is_audio or is_in_list):
             raise ValueError(
                 f"Formato non supportato: {content_type}. "
-                f"Supportati: {', '.join(self.SUPPORTED_FORMATS)}"
+                f"Deve essere un file audio."
             )
 
         # Genera ID univoco
