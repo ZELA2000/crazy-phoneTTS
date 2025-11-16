@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   crazy-phonetts-backend:
     build: ./backend
@@ -11,9 +9,6 @@ services:
       - ./backend/output:/app/output
       - crazy_phonetts_library:/app/uploads/library
       - ./VERSION:/app/VERSION:ro  # File VERSION per controllo aggiornamenti
-      - ./update_script.ps1:/app/update_script.ps1:ro  # Script aggiornamento Windows
-      - ./update_script.sh:/app/update_script.sh:ro    # Script aggiornamento Linux/Mac
-      - .:/app/project:rw  # Directory progetto per aggiornamenti
     environment:
       - PYTHONUNBUFFERED=1
       - AZURE_SPEECH_KEY=${AZURE_SPEECH_KEY}

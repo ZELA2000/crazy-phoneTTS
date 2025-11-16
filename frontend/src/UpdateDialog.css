@@ -1,0 +1,112 @@
+/* Stili per le istruzioni di aggiornamento */
+.update-instructions {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.update-instructions h4 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #1e293b;
+  font-size: 16px;
+}
+
+.instruction-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.instruction-item {
+  background: white;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.instruction-item strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.instruction-item p {
+  margin: 4px 0 8px 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.command-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1e293b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+}
+
+.command-box code {
+  flex: 1;
+  color: #10b981;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.copy-btn {
+  background: #3b82f6;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+  color: white;
+}
+
+.copy-btn:hover {
+  background: #2563eb;
+  transform: scale(1.05);
+}
+
+.copy-btn:active {
+  transform: scale(0.95);
+}
+
+.update-note {
+  margin-top: 16px;
+  padding: 12px;
+  background: #fef3c7;
+  border-radius: 6px;
+  border-left: 4px solid #f59e0b;
+}
+
+.update-note p {
+  margin: 4px 0;
+  color: #92400e;
+  font-size: 13px;
+}
+
+.update-note p:first-child {
+  margin-top: 0;
+}
+
+.update-note p:last-child {
+  margin-bottom: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .command-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .copy-btn {
+    width: 100%;
+  }
+}

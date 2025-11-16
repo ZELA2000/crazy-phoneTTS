@@ -1,8 +1,0 @@
-{
-  "status": "error",
-  "percentage": 0,
-  "message": "❌ Errore durante aggiornamento: Script terminato con codice di errore: 1",
-  "timestamp": "2025-11-14T15:07:47.5447265+01:00",
-  "type": "progress",
-  "step": "error"
-}

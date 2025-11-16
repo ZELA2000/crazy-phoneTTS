@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import './UpdateDialog.css';
 
 // ==========================================
 // RILEVAMENTO AUTOMATICO IP PER RETE
@@ -343,7 +344,7 @@ function App() {
   const startUpdate = async () => {
     try {
       setIsUpdating(true);
-      setUpdateProgress({ type: 'progress', message: '🚀 Avvio aggiornamento...', percentage: 0 });
+      setUpdateProgress({ type: 'progress', message: '🚀 Triggering Blue-Green deployment...', percentage: 0 });
       setShowUpdateDialog(false);
       
       // Tenta connessione WebSocket iniziale
@@ -354,9 +355,27 @@ function App() {
         console.log('⚠️ WebSocket non disponibile, uso solo polling persistente');
       }
       
-      // Avvia aggiornamento con nuovo sistema
-      await axios.post(`${API_URL}/update/start`);
-      console.log('✅ Aggiornamento avviato, inizio monitoring...');
+      // Triggera Blue-Green deployment
+      const response = await axios.post(`${API_URL}/deploy/trigger`);
+      console.log('✅ Deploy triggered:', response.data);
+      
+      if (response.data.status === 'manual_required') {
+        // Il deploy richiede esecuzione manuale dall'host
+        setUpdateProgress({
+          type: 'info',
+          message: `ℹ️ ${response.data.message}`,
+          percentage: 10,
+          command: response.data.command
+        });
+      } else if (response.data.status === 'no_update') {
+        setUpdateProgress({
+          type: 'info',
+          message: '✓ Nessun aggiornamento disponibile',
+          percentage: 100
+        });
+        setTimeout(() => setIsUpdating(false), 3000);
+        return;
+      }
       
       // Avvia polling intelligente (funziona anche quando Docker si spegne)
       const stopPolling = startProgressPolling();
@@ -731,21 +750,65 @@ function App() {
                   </div>
                 </div>
               )}
+              
+              {/* ISTRUZIONI DI AGGIORNAMENTO */}
+              {updateInfo?.update_instructions && (
+                <div className="update-instructions">
+                  <h4>📋 Come Aggiornare:</h4>
+                  
+                  <div className="instruction-section">
+                    <div className="instruction-item">
+                      <strong>🪟 Windows:</strong>
+                      <p>{updateInfo.update_instructions.windows.description}</p>
+                      <div className="command-box">
+                        <code>{updateInfo.update_instructions.windows.command}</code>
+                        <button 
+                          className="copy-btn" 
+                          onClick={() => {
+                            navigator.clipboard.writeText(updateInfo.update_instructions.windows.command);
+                            setSuccess('✅ Comando copiato negli appunti!');
+                            setTimeout(() => setSuccess(''), 2000);
+                          }}
+                          title="Copia comando"
+                        >
+                          📋
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="instruction-item">
+                      <strong>🐧 Linux / 🍎 Mac:</strong>
+                      <p>{updateInfo.update_instructions.linux.description}</p>
+                      <div className="command-box">
+                        <code>{updateInfo.update_instructions.linux.command}</code>
+                        <button 
+                          className="copy-btn" 
+                          onClick={() => {
+                            navigator.clipboard.writeText(updateInfo.update_instructions.linux.command);
+                            setSuccess('✅ Comando copiato negli appunti!');
+                            setTimeout(() => setSuccess(''), 2000);
+                          }}
+                          title="Copia comando"
+                        >
+                          📋
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="update-note">
+                    <p>ℹ️ Lo script creerà automaticamente un backup completo prima dell'aggiornamento</p>
+                    <p>⚠️ Il servizio sarà offline per circa 1-2 minuti durante l'aggiornamento</p>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="update-actions">
               <button 
-                className="btn btn-primary"
-                onClick={startUpdate}
-                disabled={isUpdating}
-              >
-                🚀 Aggiorna Ora
-              </button>
-              <button 
                 className="btn btn-secondary"
                 onClick={cancelUpdate}
-                disabled={isUpdating}
               >
-                ⏭️ Più tardi
+                ✅ Ho Capito
               </button>
             </div>
           </div>
