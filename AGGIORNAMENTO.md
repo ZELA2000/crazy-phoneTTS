@@ -1,4 +1,47 @@
-# 🔄 Come Aggiornare crazy-phoneTTS
+# 🔄 Sistema di Aggiornamento Semplificato
+
+## ⚠️ Importante: Cambiamenti al Sistema di Aggiornamento
+
+Il sistema di aggiornamento è stato **semplificato** per maggiore sicurezza e controllo.
+
+### Cosa è Cambiato
+
+❌ **Rimosso**: Aggiornamento automatico dal backend web  
+❌ **Rimosso**: Pulsante "Aggiorna" nell'interfaccia  
+❌ **Rimosso**: Progress tracking in tempo reale  
+
+✅ **Mantenuto**: Controllo versione da GitHub  
+✅ **Mantenuto**: Notifica aggiornamenti disponibili  
+✅ **Aggiunto**: Istruzioni chiare per aggiornamento manuale  
+
+### Perché il Cambiamento
+
+- 🔒 **Sicurezza**: Nessuna esecuzione automatica di script da remoto
+- 🎯 **Controllo**: L'amministratore decide quando aggiornare
+- 📊 **Trasparenza**: Visibilità completa del processo
+- ✅ **Affidabilità**: Meno complessità = meno bug
+
+## Come Verificare Aggiornamenti Disponibili
+
+### Tramite Interfaccia Web
+
+1. Apri l'interfaccia web di crazy-phoneTTS
+2. Vai nella sezione **"Informazioni"** o **"Settings"**
+3. Cerca la notifica di aggiornamento disponibile
+4. Visualizza il changelog e le istruzioni
+
+### Tramite API
+
+```bash
+# Controlla versione corrente
+curl http://localhost:8000/version/current
+
+# Controlla se disponibile aggiornamento
+curl http://localhost:8000/version/check
+
+# Ottieni istruzioni per aggiornare
+curl http://localhost:8000/update/instructions
+```
 
 ## Aggiornamento Manuale
 

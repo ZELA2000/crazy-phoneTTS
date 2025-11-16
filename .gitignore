@@ -4,3 +4,5 @@ frontend/node_modules/
 backup*
 .github/
 .env
+/backend/*/__pycache__
+/backend/__pycache__

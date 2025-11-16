@@ -467,25 +467,69 @@ docker cp $(docker-compose ps -q backend):/app/output/backup_*.db ./backups/
 
 ```
 crazy-phoneTTS/
-├── backend/                 # FastAPI + Azure Speech
-│   ├── main.py             # API endpoints
-│   ├── requirements.txt    # Dipendenze Python
-│   ├── Dockerfile          # Container backend
+├── backend/                        # FastAPI + Azure Speech
+│   ├── main.py                     # Entry point API
+│   ├── requirements.txt            # Dipendenze Python
+│   ├── Dockerfile                  # Container backend
+│   │
+│   ├── core/                       # ⚙️ Configurazione base
+│   │   ├── __init__.py
+│   │   └── config.py               # Configurazione centralizzata
+│   │
+│   ├── services/                   # 🔌 Integrazioni esterne
+│   │   ├── __init__.py
+│   │   └── azure_speech.py         # Azure Speech Services
+│   │
+│   ├── managers/                   # 🎯 Business logic
+│   │   ├── __init__.py
+│   │   ├── websocket_manager.py    # WebSocket real-time
+│   │   ├── update_manager.py       # Sistema aggiornamenti
+│   │   ├── audio_processor.py      # Elaborazione audio
+│   │   ├── music_library.py        # Gestione libreria
+│   │   └── version_manager.py      # Versioning GitHub
+│   │
+│   ├── models/                     # 📊 Modelli dati
+│   │   ├── __init__.py
+│   │   ├── history.py              # Database cronologia
+│   │   └── voice_catalog.py        # Catalogo voci Azure
+│   │
 │   └── uploads/
-│       ├── library/        # Libreria musicale persistente
+│       ├── library/                # Libreria musicale
 │       └── README_MUSIC.md
-├── frontend/               # React App
+│
+├── frontend/                       # React App
 │   ├── src/
-│   │   ├── App.js         # Componente principale
-│   │   ├── index.css      # Stili CSS
+│   │   ├── App.js                 # Componente principale
+│   │   ├── index.css              # Stili CSS
 │   │   └── index.js
-│   ├── package.json       # Dipendenze Node.js
-│   ├── Dockerfile         # Container frontend
+│   ├── package.json               # Dipendenze Node.js
+│   ├── Dockerfile                 # Container frontend
 │   └── public/
-├── docker-compose.yml      # Configurazione Docker
-├── .env.example           # Template variabili environment
-└── README.md             # Documentazione
+│
+├── docker-compose.yml              # Orchestrazione container
+├── .env.example                    # Template variabili env
+├── VERSION                         # Versione corrente
+├── update.ps1 / update.sh          # Script aggiornamento
+│
+└── 📚 Documentazione
+    ├── README.md                   # Questo file
+    ├── BACKEND_STRUCTURE.md        # Architettura backend
+    ├── ARCHITECTURE_DIAGRAM.md     # Diagrammi visuali
+    ├── TECHNICAL_DOCUMENTATION.md  # Documentazione tecnica
+    ├── REFACTORING_GUIDE.md        # Guida refactoring
+    └── REFACTORING_SUMMARY.md      # Riepilogo modifiche
 ```
+
+### Architettura Backend
+
+Il backend segue il pattern **Layered Architecture** con separazione delle responsabilità:
+
+- **core/** - Configurazione e componenti fondamentali
+- **services/** - Integrazione con API esterne (Azure)
+- **managers/** - Logica business e coordinamento
+- **models/** - Modelli dati e persistenza
+
+📖 **Documentazione completa**: Vedi [BACKEND_STRUCTURE.md](BACKEND_STRUCTURE.md) e [ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md)
 
 ## Performance e Ottimizzazioni
 
