@@ -688,7 +688,7 @@ Consigliate:
 
 ## 📄 Licenza
 
-Questo progetto utilizza la licenza GNU GPL v3.0. Consulta il file [LICENSE](LICENSE.md) per i dettagli completi.
+Questo progetto utilizza la licenza GNU GPL v3.0. Consulta il file [LICENSE](LICENSE) per i dettagli completi.
 
 ---
 
