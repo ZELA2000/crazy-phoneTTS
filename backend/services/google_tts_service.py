@@ -6,7 +6,8 @@ Integrazione minima con Google TTS per crazy-phoneTTS
 
 import asyncio
 import os
-from typing import Tuple, List, Dict, Optional
+import logging
+from typing import Tuple, List, Dict
 
 try:
     from google.cloud import texttospeech
@@ -15,6 +16,8 @@ try:
 except ImportError:
     GOOGLE_AVAILABLE = False
     texttospeech = None
+
+logger = logging.getLogger(__name__)
 
 class GoogleTTSService:
     """Servizio essenziale Google Cloud Text-to-Speech"""
@@ -34,16 +37,16 @@ class GoogleTTSService:
             if os.getenv('GOOGLE_APPLICATION_CREDENTIALS') or self._check_default_credentials():
                 self.client = texttospeech.TextToSpeechClient()
                 self.available = True
-                print("✅ Google TTS: Servizio attivo")
+                logger.info("Google TTS: Servizio attivo")
         except Exception as e:
-            print(f"⚠️  Google TTS: {e}")
+            logger.warning(f"Google TTS: {e}")
     
     def _check_default_credentials(self) -> bool:
         """Verifica credenziali di default"""
         try:
             default()
             return True
-        except:
+        except Exception:
             return False
     
     def is_available(self) -> bool:

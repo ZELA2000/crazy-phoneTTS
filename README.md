@@ -54,7 +54,7 @@ crazy-phoneTTS è un sistema Text-to-Speech professionale per centralini telefon
 4. **Accedi**
   - Frontend: [http://localhost:3000](http://localhost:3000)
   - API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-  - Healthcheck: [http://localhost:8000/health](http://localhost:8000/health)
+  - Health Check: [http://localhost:8000/health](http://localhost:8000/health)
 
 ---
 
@@ -91,6 +91,25 @@ crazy-phoneTTS è un sistema Text-to-Speech professionale per centralini telefon
 
 **Opzione 2: Credenziali automatiche (Google Cloud)**
 Se l'app gira su Google Cloud (Cloud Run, Compute Engine), le credenziali vengono rilevate automaticamente.
+
+**Opzione 3: Docker**
+Se usi Docker, devi montare il file delle credenziali all'interno del container e impostare la variabile d'ambiente con il percorso interno al container.
+
+Esempio con `docker-compose.yml`:
+
+```yaml
+services:
+  backend:
+    image: crazy-phone-tts-backend
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/google-credentials.json
+    volumes:
+      - ./path/to/your/credentials.json:/run/secrets/google-credentials.json:ro
+```
+
+- Sostituisci `./path/to/your/credentials.json` con il percorso del file JSON sul tuo host.
+- Il percorso `/run/secrets/google-credentials.json` è quello visto dal container.
+- Assicurati che la variabile d'ambiente punti al percorso interno del container, **non** a quello dell'host.
 
 #### 3. Test rapido
 1. Configura le credenziali come sopra
@@ -211,8 +230,6 @@ Per dettagli tecnici sulle architetture, consulta i file di progetto e la docume
 ---
 
 Sistema TTS professionale per centralini con Azure Speech Services, Google Cloud TTS, Edge TTS e libreria musicale integrata.
-...existing code...
-- Volume musica: 40%
 
 ### Formati Output
 
