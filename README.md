@@ -1,165 +1,217 @@
-# 🎙️ crazy-phoneTTS
 
-Sistema Text-to-Speech professionale per centralini telefonici con Azure Speech Services e libreria musicale integrata.
+# crazy-phoneTTS
 
-## 📑 Indice
+Sistema Text-to-Speech professionale per centralini telefonici, con supporto per Azure Speech Services, Google Cloud TTS, Edge TTS e libreria musicale integrata.
 
-- [Caratteristiche Principali](#caratteristiche-principali)
-- [🚀 Setup Rapido (5 minuti)](#-setup-rapido-5-minuti)
-- [💰 Piano Azure F0](#-piano-azure-f0---perfetto-per-centralini)
-- [🗣️ Voci Disponibili](#️-voci-italiane-disponibili)
-- [⚙️ Funzionalità Avanzate](#️-funzionalità-avanzate)
-- [🌐 Deployment in Rete](#-deployment-in-rete-aziendale)
-- [🔧 Configurazione Avanzata](#-configurazione-avanzata)
-- [📚 API Reference](#-api-reference)
-- [🛠️ Risoluzione Problemi](#️-risoluzione-problemi)
-- [📊 Monitoraggio](#-monitoraggio-e-manutenzione)
-- [📁 Struttura Progetto](#-struttura-del-progetto)
-- [🔗 Link Utili](#-supporto-e-link-utili)
-- [💻 Tecnologie Utilizzate](#-tecnologie-utilizzate)
 
-## Caratteristiche Principali
+## Indice
+- [Introduzione](#introduzione)
+- [Requisiti](#requisiti)
+- [Setup Rapido](#setup-rapido)
+- [Configurazione Servizi TTS](#configurazione-servizi-tts)
+- [Configurazione Libreria Musicale](#configurazione-libreria-musicale)
+- [Utilizzo API](#utilizzo-api)
+- [Aggiornamenti e Backup](#aggiornamenti-e-backup)
+- [Risoluzione Problemi](#risoluzione-problemi)
+- [Struttura Progetto](#struttura-progetto)
+- [Linee Guida per le Voci](#linee-guida-per-le-voci)
+- [Risorse Utili](#risorse-utili)
 
-### 🏢 Azure Speech Services - Licenza Commerciale
-- Uso commerciale legale per centralini business
-- Piano F0 gratuito: 500.000 caratteri/mese
-- SLA 99.9% garantito da Microsoft
-- Voci Neural Italiane di alta qualità
+---
 
-### 🎵 Libreria Musicale Avanzata
-- Upload multipli: MP3, WAV, OGG
-- Gestione persistente con metadati
-- Controlli audio: volume, fade in/out, timing
-- Anteprima integrata prima della generazione
+## Introduzione
 
-### ⚡ Funzionalità Professionali
-- Formati output: WAV, MP3, GSM
-- Qualità telefonica: PCM, A-law, μ-law
-- Nomi file personalizzati con data
-- Interface responsive per tutti i dispositivi
+crazy-phoneTTS è un sistema Text-to-Speech professionale per centralini telefonici, con sintesi vocale di alta qualità, mixaggio audio avanzato e interfaccia web moderna.
 
-### 🔄 Sistema Auto-Aggiornamento
-- Controllo automatico nuove release GitHub
-- Notifiche in-app con changelog
-- Aggiornamento one-click con progress bar
-- Backup automatico configurazioni
-- Riavvio zero-downtime dopo aggiornamento
+---
 
-## 🚀 Setup Rapido (5 minuti)
+## Requisiti
 
-### 1. Prerequisiti
-- Docker e Docker Compose
-- Account Azure (gratuito)
-- Almeno 4GB di RAM
-- Porte 3000 e 8000 disponibili
+- Docker + Docker Compose
+- Account per almeno un servizio TTS (Azure, Google, Edge)
+- 4GB RAM minimi (consigliati 8GB+)
+- Porte 3000 (frontend) e 8000 (backend) disponibili
 
-### 2. Configurazione Azure Speech Services
+---
 
-1. Vai al [Portal Azure](https://portal.azure.com)
-2. Crea una risorsa "Speech Services"
-3. Ottieni **Key** e **Region** dalla sezione "Keys and Endpoint"
+## Setup Rapido
 
-### 3. Configurazione Progetto
+1. **Clona il repository**
+  ```bash
+  git clone <repository-url>
+  cd crazy-phoneTTS
+  ```
 
-```bash
-# Clone del repository
-git clone <repository-url>
-cd crazy-phoneTTS
+2. **Configura il file `.env`**
+  - Copia `.env.example` in `.env`
+  - Inserisci le credenziali per almeno un servizio TTS (vedi sezione successiva)
 
-# Crea file .env
-cat > .env << EOF
-AZURE_SPEECH_KEY=your_api_key_here
-AZURE_SPEECH_REGION=westeurope
-EOF
+3. **Avvia il sistema**
+  ```bash
+  docker-compose up --build
+  ```
+
+4. **Accedi**
+  - Frontend: [http://localhost:3000](http://localhost:3000)
+  - API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+  - Healthcheck: [http://localhost:8000/health](http://localhost:8000/health)
+
+---
+
+
+## Configurazione Servizi TTS
+
+### Azure Speech Services
+- Ottieni chiave e region dal portale Azure
+- Imposta in `.env`:
+  ```
+  AZURE_SPEECH_KEY=your-key
+  AZURE_SPEECH_REGION=your-region
+  ```
+
+### Google Cloud Text-to-Speech
+
+#### 1. Prerequisiti
+- Account Google Cloud
+- Progetto Google Cloud attivo
+- API "Cloud Text-to-Speech" abilitata
+
+#### 2. Configurazione Credenziali
+
+**Opzione 1: File JSON (raccomandato)**
+1. Vai su: https://console.cloud.google.com/
+2. Crea nuovo progetto o seleziona esistente
+3. Abilita "Cloud Text-to-Speech API"
+4. Vai su "IAM & Admin" > "Service Accounts"
+5. Crea Service Account con ruolo "Text-to-Speech User"
+6. Scarica il file JSON delle credenziali
+7. Imposta la variabile d'ambiente:
+   - Linux/macOS: `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/credentials.json"`
+   - Windows: `set GOOGLE_APPLICATION_CREDENTIALS=C:\path\to\credentials.json`
+
+**Opzione 2: Credenziali automatiche (Google Cloud)**
+Se l'app gira su Google Cloud (Cloud Run, Compute Engine), le credenziali vengono rilevate automaticamente.
+
+#### 3. Test rapido
+1. Configura le credenziali come sopra
+2. Riavvia: `docker-compose down && docker-compose up --build`
+3. Vai su: http://localhost:3000
+4. Seleziona "Google" come servizio TTS
+5. Testa con frasi brevi
+
+#### 4. Troubleshooting
+- Errore "credenziali non trovate": verifica il path del file JSON e i permessi
+- Errore "API non abilitata": abilita "Cloud Text-to-Speech API" nel progetto
+- Errore "quota superata": verifica l'utilizzo nel Google Cloud Console
+- Il servizio non appare: controlla i log Docker e la configurazione
+
+#### 5. Setup delle voci
+- Consulta la lista delle voci disponibili tramite API o interfaccia web
+- Scegli voci italiane per centralini (es. Neural2, WaveNet)
+- Testa la voce con un breve messaggio prima di generare file definitivi
+
+### Edge TTS
+- Non richiede configurazione, sempre disponibile
+
+---
+
+## Configurazione Libreria Musicale
+
+- Carica file musicali tramite interfaccia web (MP3, WAV, OGG)
+- I file vengono analizzati e ottimizzati automaticamente
+- Puoi gestire volume, fade in/out, timing e preview
+
+---
+
+## Utilizzo API
+
+### Sintesi Vocale
+```http
+POST /generate-audio
+Content-Type: multipart/form-data
+text: "Messaggio di benvenuto"
+tts_service: "azure" | "google" | "edge"
+voice_id: "it-IT-ElsaNeural"
+music_file: file.mp3
+music_volume: 0.3
+output_format: "wav"
 ```
 
-### 4. Avvio Sistema
-
-```bash
-# Build e avvio
-docker-compose up --build
-
-# Oppure in background
-docker-compose up -d --build
+### Libreria Musicale
+```http
+POST /music-library/upload
+GET /music-library/list
+DELETE /music-library/{song_id}
 ```
 
-### 5. Verifica Funzionamento
-
-- **Frontend**: http://localhost:3000
-- **API Docs**: http://localhost:8000/docs
-- **Health Check**: http://localhost:8000/health
-
-Dovresti vedere:
-```json
-{
-  "status": "healthy",
-  "azure_speech_ready": true,
-  "region": "westeurope"
-}
+### Gestione Voci
+```http
+GET /available-voices
+POST /test-voice
 ```
 
-## 💰 Piano Azure F0 - Perfetto per Centralini
+---
 
-| Caratteristica | Piano F0 Gratuito |
-|----------------|------------------|
-| **Caratteri/mese** | 500.000 GRATIS |
-| **Messaggi centralino** | ~6.600/mese* |
-| **Uso commerciale** | ✅ Autorizzato |
-| **SLA** | 99.9% |
-| **Costo eccedenza** | $1/milione caratteri |
+## Aggiornamenti e Backup
 
-*Basato su 75 caratteri per messaggio medio
+- Aggiornamento automatico tramite interfaccia web o script (`update.ps1`/`update.sh`)
+- Backup automatico di configurazioni e file upload
+- Rollback disponibile tramite cartella backup
 
-## 🗣️ Voci Italiane Disponibili
+---
 
-### Femminili
-- **it-IT-ElsaNeural**: Voce professionale per centralini aziendali
-- **it-IT-IsabellaNeural**: Voce espressiva per messaggi promozionali
-- **it-IT-IrmaNeural**: Voce calda per supporto clienti
+## Risoluzione Problemi
 
-### Maschili
-- **it-IT-DiegoNeural**: Voce autorevole per annunci ufficiali
-- **it-IT-BenignoNeural**: Voce espressiva per guide vocali
-- **it-IT-CalimeroNeural**: Voce moderna per comunicazioni dinamiche
+- Verifica credenziali e region in `.env`
+- Riavvia Docker dopo modifiche
+- Consulta i log con `docker-compose logs -f backend`
+- Testa la connessione con `curl http://localhost:8000/health`
+- Per ambienti aziendali, aumenta timeout e verifica proxy/firewall
 
-### Stili Vocali Supportati
-- `customerservice`: Ottimizzato per servizio clienti
-- `newscast`: Stile da giornalista/annunciatore
-- `assistant`: Stile da assistente virtuale
-- `chat`: Conversazionale e amichevole
-- `cheerful`: Allegro e positivo
+---
 
-## ⚙️ Funzionalità Avanzate
+## Struttura Progetto
 
-### Gestione Libreria Musicale
+```
+crazy-phoneTTS/
+├── backend/        # FastAPI + servizi TTS
+├── frontend/       # React web app
+├── docker-compose.yml
+├── .env.example    # Template configurazione
+├── update.ps1/.sh  # Script aggiornamento
+├── output/         # File audio generati
+├── uploads/        # Libreria musicale
+```
 
-1. **Caricare una canzone**:
-   - Click "Libreria Musicale"
-   - Inserisci nome canzone
-   - Seleziona file audio (MP3/WAV/OGG)
-   - Click "Carica"
+---
 
-2. **Controlli Audio Avanzati**:
-   - **Volume musica**: 0-100% (slider)
-   - **Musica prima del testo**: 0-10 secondi
-   - **Musica dopo il testo**: 0-10 secondi
-   - **Fade In**: 0-5 secondi
-   - **Fade Out**: 0-5 secondi
+## Linee Guida per le Voci
 
-### Configurazioni Esempio
+- Scegli voci italiane professionali per centralini (es. ElsaNeural, DiegoNeural)
+- Utilizza stili vocali appropriati: `customerservice`, `newscast`, `assistant`
+- Per Google TTS, seleziona voci italiane disponibili tramite API
+- Testa sempre la voce con un breve messaggio prima di generare file definitivi
 
-#### Per Centralino Professionale:
-- Musica prima: 3 secondi
-- Musica dopo: 2 secondi
-- Fade In: 1 secondo
-- Fade Out: 2 secondi
-- Volume musica: 30%
+---
 
-#### Per Messaggio Pubblicitario:
-- Musica prima: 5 secondi
-- Musica dopo: 4 secondi
-- Fade In: 2 secondi
-- Fade Out: 3 secondi
+## Risorse Utili
+
+- [Documentazione Azure Speech](https://docs.microsoft.com/azure/cognitive-services/speech-service/)
+- [Documentazione Google Cloud TTS](https://cloud.google.com/text-to-speech/docs)
+- [API Reference FastAPI](http://localhost:8000/docs)
+- [Guida Docker](https://docs.docker.com/get-started/)
+
+---
+
+## Note Finali
+
+Questa documentazione è pensata per guidare l’utente in modo chiaro e professionale, dalla configurazione iniziale all’utilizzo avanzato, senza riferimenti commerciali o promozionali.  
+Per dettagli tecnici sulle architetture, consulta i file di progetto e la documentazione tecnica inclusa.
+
+---
+
+Sistema TTS professionale per centralini con Azure Speech Services, Google Cloud TTS, Edge TTS e libreria musicale integrata.
+...existing code...
 - Volume musica: 40%
 
 ### Formati Output
@@ -209,12 +261,11 @@ New-NetFirewallRule -DisplayName "TTS Frontend" -Direction Inbound -Protocol TCP
 
 ### Funzionalità Automatiche
 
-Il sistema include un **sistema di aggiornamento automatico** completo:
+Il sistema include un **sistema di aggiornamento completo**:
 
 - ✅ **Controllo automatico** nuove release GitHub ogni ora
 - ✅ **Notifiche in-app** con changelog dettagliato 
-- ✅ **Aggiornamento one-click** dall'interfaccia web
-- ✅ **Progress bar in tempo reale** durante l'aggiornamento
+- ✅ **Download e installazione** da terminale
 - ✅ **Backup automatico** di configurazioni e upload
 - ✅ **Riavvio zero-downtime** dopo completamento
 
@@ -229,22 +280,6 @@ Il sistema include un **sistema di aggiornamento automatico** completo:
 7. **Riavvio**: Ricompila e riavvia i container Docker
 8. **Verifica**: Controlla che tutto funzioni correttamente
 9. **Completamento**: Ricarica automaticamente la pagina
-
-### API Aggiornamenti
-
-```bash
-# Controlla versione attuale
-GET /version/current
-
-# Controlla aggiornamenti disponibili  
-GET /version/check
-
-# Avvia aggiornamento
-POST /update/start
-
-# WebSocket progress aggiornamento
-WS /ws/update-progress
-```
 
 ### Aggiornamento Manuale
 
@@ -436,6 +471,8 @@ Assicurati che questi domini siano abilitati:
 - `*.cognitiveservices.azure.com`
 - `*.speech.microsoft.com`
 - `westeurope.api.cognitive.microsoft.com` (o la tua region)
+- `*.googleapis.com` (per Google Cloud TTS)
+- `*.edge.microsoft.com` (per Edge TTS)
 
 ## 📊 Monitoraggio e Manutenzione
 
@@ -479,6 +516,8 @@ crazy-phoneTTS/
 │   ├── services/                   # 🔌 Integrazioni esterne
 │   │   ├── __init__.py
 │   │   └── azure_speech.py         # Azure Speech Services
+│   │   └── edge_tts_service.py    # Edge TTS Service
+│   │   └── google_tts_service.py  # Google Cloud TTS Service
 │   │
 │   ├── managers/                   # 🎯 Business logic
 │   │   ├── __init__.py
@@ -519,17 +558,6 @@ crazy-phoneTTS/
     ├── REFACTORING_GUIDE.md        # Guida refactoring
     └── REFACTORING_SUMMARY.md      # Riepilogo modifiche
 ```
-
-### Architettura Backend
-
-Il backend segue il pattern **Layered Architecture** con separazione delle responsabilità:
-
-- **core/** - Configurazione e componenti fondamentali
-- **services/** - Integrazione con API esterne (Azure)
-- **managers/** - Logica business e coordinamento
-- **models/** - Modelli dati e persistenza
-
-📖 **Documentazione completa**: Vedi [BACKEND_STRUCTURE.md](BACKEND_STRUCTURE.md) e [ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md)
 
 ## Performance e Ottimizzazioni
 
@@ -660,7 +688,7 @@ Consigliate:
 
 ## 📄 Licenza
 
-Questo progetto utilizza Azure Speech Services con licenza commerciale autorizzata per uso business.
+Questo progetto utilizza la licenza GNU GPL v3.0. Consulta il file [LICENSE](LICENSE) per i dettagli completi.
 
 ---
 

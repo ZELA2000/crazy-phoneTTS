@@ -43,6 +43,7 @@ from models.history import TextHistoryDatabase
 from models.voice_catalog import VoiceCatalog
 from services.azure_speech import AzureSpeechService, SSMLParameters, VoiceStyle
 from services.edge_tts_service import EdgeTTSService
+from services.google_tts_service import GoogleTTSService
 from managers.websocket_manager import HistoryUpdateManager, UpdateProgressManager as WebSocketUpdateProgressManager
 from managers.update_manager import UpdateNotificationManager
 from managers.audio_processor import AudioConverter, AudioQualitySpec
@@ -88,6 +89,9 @@ azure_speech_service = AzureSpeechService(
 
 # Servizio Edge TTS (gratuito, sempre disponibile)
 edge_tts_service = EdgeTTSService()
+
+# Servizio Google TTS (opzionale, richiede credenziali)
+google_tts_service = GoogleTTSService()
 
 # Gestore per cronologia testi real-time
 manager = HistoryUpdateManager()
@@ -563,6 +567,37 @@ async def generate_audio(
                 volume=volume,
                 pitch="+0Hz"
             )
+        elif tts_service == "google":
+            # Usa Google Cloud TTS
+            if not google_tts_service.is_available():
+                raise HTTPException(
+                    status_code=503,
+                    detail="Google TTS non configurato. Configura credenziali Google Cloud o usa tts_service='edge'."
+                )
+            
+            try:
+                audio_data, audio_format = await google_tts_service.synthesize_text(
+                    text=text,
+                    voice_name=edge_voice,  # Usa stesso parametro per semplicità
+                    speed=1.0
+                )
+                
+                # Salva l'audio
+                os.makedirs("output", exist_ok=True)
+                with open(tts_path, 'wb') as f:
+                    f.write(audio_data)
+                
+                # Converti MP3 in WAV se necessario
+                if audio_format == "mp3":
+                    from pydub import AudioSegment
+                    audio = AudioSegment.from_mp3(tts_path)
+                    audio.export(tts_path, format="wav")
+                
+                success = True
+                
+            except Exception as e:
+                logger.error(f"Errore Google TTS: {e}")
+                success = False
         else:
             # Usa Azure Speech Services (richiede API key)
             if not azure_speech_service:
@@ -977,6 +1012,16 @@ async def get_tts_services():
         "available": azure_available,
         "voices": azure_voices,
         "default_voice": "it-IT-ElsaNeural"
+    }
+
+    # Google Cloud TTS (richiede credenziali Google Cloud)
+    google_available = google_tts_service.is_available()
+    services["google"] = {
+        "name": "Google Cloud Text-to-Speech",
+        "description": "Servizio Google con voci Neural2" if google_available else "Non disponibile - configura credenziali Google Cloud",
+        "available": google_available,
+        "voices": google_tts_service.get_available_voices(),
+        "default_voice": "it-IT-Neural2-A"
     }
 
     return {
