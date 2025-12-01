@@ -261,12 +261,11 @@ New-NetFirewallRule -DisplayName "TTS Frontend" -Direction Inbound -Protocol TCP
 
 ### Funzionalità Automatiche
 
-Il sistema include un **sistema di aggiornamento automatico** completo:
+Il sistema include un **sistema di aggiornamento completo**:
 
 - ✅ **Controllo automatico** nuove release GitHub ogni ora
 - ✅ **Notifiche in-app** con changelog dettagliato 
-- ✅ **Aggiornamento one-click** dall'interfaccia web
-- ✅ **Progress bar in tempo reale** durante l'aggiornamento
+- ✅ **Download e installazione** da terminale
 - ✅ **Backup automatico** di configurazioni e upload
 - ✅ **Riavvio zero-downtime** dopo completamento
 
@@ -281,22 +280,6 @@ Il sistema include un **sistema di aggiornamento automatico** completo:
 7. **Riavvio**: Ricompila e riavvia i container Docker
 8. **Verifica**: Controlla che tutto funzioni correttamente
 9. **Completamento**: Ricarica automaticamente la pagina
-
-### API Aggiornamenti
-
-```bash
-# Controlla versione attuale
-GET /version/current
-
-# Controlla aggiornamenti disponibili  
-GET /version/check
-
-# Avvia aggiornamento
-POST /update/start
-
-# WebSocket progress aggiornamento
-WS /ws/update-progress
-```
 
 ### Aggiornamento Manuale
 
@@ -488,6 +471,8 @@ Assicurati che questi domini siano abilitati:
 - `*.cognitiveservices.azure.com`
 - `*.speech.microsoft.com`
 - `westeurope.api.cognitive.microsoft.com` (o la tua region)
+- `*.googleapis.com` (per Google Cloud TTS)
+- `*.edge.microsoft.com` (per Edge TTS)
 
 ## 📊 Monitoraggio e Manutenzione
 
@@ -531,6 +516,8 @@ crazy-phoneTTS/
 │   ├── services/                   # 🔌 Integrazioni esterne
 │   │   ├── __init__.py
 │   │   └── azure_speech.py         # Azure Speech Services
+│   │   └── edge_tts_service.py    # Edge TTS Service
+│   │   └── google_tts_service.py  # Google Cloud TTS Service
 │   │
 │   ├── managers/                   # 🎯 Business logic
 │   │   ├── __init__.py
@@ -571,17 +558,6 @@ crazy-phoneTTS/
     ├── REFACTORING_GUIDE.md        # Guida refactoring
     └── REFACTORING_SUMMARY.md      # Riepilogo modifiche
 ```
-
-### Architettura Backend
-
-Il backend segue il pattern **Layered Architecture** con separazione delle responsabilità:
-
-- **core/** - Configurazione e componenti fondamentali
-- **services/** - Integrazione con API esterne (Azure)
-- **managers/** - Logica business e coordinamento
-- **models/** - Modelli dati e persistenza
-
-📖 **Documentazione completa**: Vedi [BACKEND_STRUCTURE.md](BACKEND_STRUCTURE.md) e [ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md)
 
 ## Performance e Ottimizzazioni
 
@@ -712,7 +688,7 @@ Consigliate:
 
 ## 📄 Licenza
 
-Questo progetto utilizza Azure Speech Services con licenza commerciale autorizzata per uso business.
+Questo progetto utilizza la licenza GNU GPL v3.0. Consulta il file [LICENSE](LICENSE.md) per i dettagli completi.
 
 ---
 
