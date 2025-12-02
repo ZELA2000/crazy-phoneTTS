@@ -51,11 +51,3 @@ requests>=2.31.0
 
 # HTML escaping
 # html - built-in module
-
-
-# HTML escaping
-# html - built-in module
-
-
-# HTML escaping
-# html - built-in module

@@ -448,7 +448,7 @@ async def generate_audio(
     predefined_speaker: str = Form(None),  # Speaker predefinito
     language: str = Form("it"),  # Lingua per XTTS_v2
     tts_service: str = Form("azure"),  # Servizio TTS: "azure" (default)
-    edge_voice: str = Form("it-IT-ElsaNeural"),  # Voce Azure Speech
+    voice_name: str = Form("it-IT-ElsaNeural"),  # Voce TTS (per tutti i servizi)
     library_song_id: str = Form(None),  # ID della canzone dalla libreria
     output_format: str = Form("wav"),  # Formato output: "wav", "mp3", "gsm"
     audio_quality: str = Form("pcm"),  # Qualità: "pcm", "alaw", "ulaw"
@@ -561,7 +561,7 @@ async def generate_audio(
 
             success = await edge_tts_service.generate_speech(
                 text=text,
-                voice=edge_voice,
+                voice=voice_name,
                 output_path=tts_path,
                 rate=rate,
                 volume=volume,
@@ -578,7 +578,7 @@ async def generate_audio(
             try:
                 audio_data, audio_format = await google_tts_service.synthesize_text(
                     text=text,
-                    voice_name=edge_voice,  # Usa stesso parametro per semplicità
+                    voice_name=voice_name,
                     speed=1.0
                 )
                 
@@ -589,7 +589,6 @@ async def generate_audio(
                 
                 # Converti MP3 in WAV se necessario
                 if audio_format == "mp3":
-                    from pydub import AudioSegment
                     audio = AudioSegment.from_mp3(tts_path)
                     audio.export(tts_path, format="wav")
                 
@@ -611,11 +610,11 @@ async def generate_audio(
                 'rate': 'medium',
                 'pitch': 'medium',
                 'volume': 'loud',
-                'style': 'customerservice' if 'Neural' in edge_voice else None,
+                'style': 'customerservice' if 'Neural' in voice_name else None,
                 'emphasis': 'moderate'
             }
 
-            success = await generate_azure_speech(text, edge_voice, tts_path, ssml_options)
+            success = await generate_azure_speech(text, voice_name, tts_path, ssml_options)
 
         if not success:
             raise HTTPException(
@@ -626,7 +625,7 @@ async def generate_audio(
             # Ottieni IP utente per tracking (solo ultimi caratteri per privacy)
             user_ip = "unknown"  # In produzione: request.client.host
 
-            history_id = add_text_to_history(text, edge_voice, user_ip)
+            history_id = add_text_to_history(text, voice_name, user_ip)
 
             # Notifica tutti gli utenti connessi del nuovo testo
             history_update = {
@@ -634,7 +633,7 @@ async def generate_audio(
                 "data": {
                     "id": history_id,
                     "text": text[:100] + "..." if len(text) > 100 else text,
-                    "voice": edge_voice,
+                    "voice": voice_name,
                     "timestamp": datetime.now().isoformat(),
                     "user_ip": user_ip[-8:] if user_ip != "unknown" else "unknown"
                 }
