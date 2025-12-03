@@ -5,13 +5,15 @@ $ErrorActionPreference = "Stop"
 Write-Host "=== crazy-phoneTTS Update Script ===" -ForegroundColor Cyan
 Write-Host ""
 
-# Verifica che git sia installato
+# Verifica disponibilità git
+$GIT_AVAILABLE = $false
 try {
     git --version | Out-Null
+    $GIT_AVAILABLE = $true
+    Write-Host "Git disponibile: utilizzo git per l'aggiornamento" -ForegroundColor Green
 }
 catch {
-    Write-Host "ERRORE: Git non e installato. Installa Git per continuare." -ForegroundColor Red
-    exit 1
+    Write-Host "Git non disponibile: utilizzo download ZIP manuale" -ForegroundColor Yellow
 }
 
 # Verifica che docker sia in esecuzione
@@ -130,41 +132,109 @@ catch {
 Write-Host ""
 Write-Host "[2/5] Scaricamento ultima release da GitHub..." -ForegroundColor Cyan
 try {
-    $hasChanges = git status --porcelain
-    if ($hasChanges) {
-        Write-Host "  - Trovate modifiche locali, salvataggio in stash..." -ForegroundColor Yellow
-        git stash push -m "Auto-stash before update"
-    }
-    
-    Write-Host "  - Download delle release..." -ForegroundColor Gray
-    git fetch --tags --force
-    
-    if ($latestVersion -ne "unknown") {
-        Write-Host "  - Checkout della versione $latestVersion..." -ForegroundColor Gray
-        git checkout $latestVersion -f
+    if ($GIT_AVAILABLE) {
+        # Metodo 1: Usa Git (preferito)
+        Write-Host "  - Utilizzo Git per l'aggiornamento..." -ForegroundColor Gray
+        
+        $hasChanges = git status --porcelain
+        if ($hasChanges) {
+            Write-Host "  - Trovate modifiche locali, salvataggio in stash..." -ForegroundColor Yellow
+            git stash push -m "Auto-stash before update"
+        }
+        
+        Write-Host "  - Download delle release..." -ForegroundColor Gray
+        git fetch --tags --force
+        
+        if ($latestVersion -ne "unknown") {
+            Write-Host "  - Checkout della versione $latestVersion..." -ForegroundColor Gray
+            git checkout $latestVersion -f
+        }
+        else {
+            Write-Host "  - Eseguo git pull..." -ForegroundColor Gray
+            git pull
+        }
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Git checkout/pull fallito"
+        }
+        
+        if ($hasChanges) {
+            Write-Host "  - Tentativo ripristino modifiche locali..." -ForegroundColor Yellow
+            git stash pop 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  - ATTENZIONE: Alcune modifiche locali potrebbero essere in conflitto" -ForegroundColor Yellow
+                Write-Host "  - Le modifiche sono salvate in: git stash list" -ForegroundColor Yellow
+            }
+        }
     }
     else {
-        Write-Host "  - Eseguo git pull..." -ForegroundColor Gray
-        git pull
-    }
-    
-    if ($LASTEXITCODE -ne 0) {
-        throw "Git checkout/pull fallito"
-    }
-    
-    if ($hasChanges) {
-        Write-Host "  - Tentativo ripristino modifiche locali..." -ForegroundColor Yellow
-        git stash pop 2>$null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "  - ATTENZIONE: Alcune modifiche locali potrebbero essere in conflitto" -ForegroundColor Yellow
-            Write-Host "  - Le modifiche sono salvate in: git stash list" -ForegroundColor Yellow
+        # Metodo 2: Download ZIP manuale (fallback)
+        Write-Host "  - Download ZIP dalla release GitHub..." -ForegroundColor Gray
+        
+        $zipUrl = "https://github.com/ZELA2000/crazy-phoneTTS/archive/refs/heads/main.zip"
+        $zipPath = Join-Path $env:TEMP "crazy-phoneTTS-update.zip"
+        $extractPath = Join-Path $env:TEMP "crazy-phoneTTS-extract"
+        
+        # Download ZIP
+        Write-Host "  - Download in corso da GitHub..." -ForegroundColor Gray
+        Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -ErrorAction Stop
+        
+        # Estrazione
+        Write-Host "  - Estrazione archivio..." -ForegroundColor Gray
+        if (Test-Path $extractPath) {
+            Remove-Item $extractPath -Recurse -Force
         }
+        Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+        
+        # Trova la cartella estratta
+        $extractedFolder = Get-ChildItem $extractPath | Select-Object -First 1
+        
+        # Copia solo i file necessari (escludi .git, .env, uploads, output)
+        Write-Host "  - Aggiornamento file di sistema..." -ForegroundColor Gray
+        
+        $excludeDirs = @('.git', 'uploads', 'output', 'backup*', 'node_modules')
+        $excludeFiles = @('.env', '.env.local')
+        
+        Get-ChildItem -Path $extractedFolder.FullName -Recurse | ForEach-Object {
+            $relativePath = $_.FullName.Substring($extractedFolder.FullName.Length + 1)
+            $destPath = Join-Path $currentDir $relativePath
+            
+            # Salta directory escluse
+            $skip = $false
+            foreach ($excludeDir in $excludeDirs) {
+                if ($relativePath -like "$excludeDir*") {
+                    $skip = $true
+                    break
+                }
+            }
+            
+            # Salta file esclusi
+            if ($excludeFiles -contains $_.Name) {
+                $skip = $true
+            }
+            
+            if (-not $skip) {
+                if ($_.PSIsContainer) {
+                    if (-not (Test-Path $destPath)) {
+                        New-Item -Path $destPath -ItemType Directory -Force | Out-Null
+                    }
+                }
+                else {
+                    Copy-Item -Path $_.FullName -Destination $destPath -Force
+                }
+            }
+        }
+        
+        # Pulizia
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+        Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
     }
     
     Write-Host "  - Aggiornamenti scaricati con successo" -ForegroundColor Green
 }
 catch {
     Write-Host "ERRORE: Impossibile scaricare gli aggiornamenti." -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
     Restore-Backup
     exit 1
 }
