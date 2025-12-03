@@ -1,5 +1,5 @@
-﻿#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -20,9 +20,12 @@ done
 echo -e "${CYAN}=== crazy-phoneTTS Update Script ===${NC}"
 echo ""
 
-if ! command -v git &> /dev/null; then
-    echo -e "${RED}ERRORE: Git non e installato.${NC}"
-    exit 1
+GIT_AVAILABLE=false
+if command -v git &> /dev/null; then
+    GIT_AVAILABLE=true
+    echo -e "${GREEN}Git disponibile: utilizzo git per l'aggiornamento${NC}"
+else
+    echo -e "${YELLOW}Git non disponibile: utilizzo download ZIP manuale${NC}"
 fi
 
 if ! command -v docker &> /dev/null; then
@@ -30,8 +33,39 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
+# Rileva se è necessario sudo per docker
+DOCKER_CMD="docker"
+NEEDS_SUDO=false
+
 if ! docker ps &> /dev/null; then
-    echo -e "${RED}ERRORE: Docker non e in esecuzione.${NC}"
+    if sudo docker ps &> /dev/null 2>&1; then
+        DOCKER_CMD="sudo docker"
+        NEEDS_SUDO=true
+        echo -e "${YELLOW}Utilizzo sudo per i comandi Docker${NC}"
+    else
+        echo -e "${RED}ERRORE: Docker non e in esecuzione.${NC}"
+        exit 1
+    fi
+fi
+
+# Rileva se usare docker compose o docker-compose
+COMPOSE_CMD=""
+if $DOCKER_CMD compose version &> /dev/null; then
+    COMPOSE_CMD="compose"
+    echo -e "${GREEN}Utilizzo docker compose (nuovo)${NC}"
+elif command -v docker-compose &> /dev/null; then
+    # docker-compose legacy - se docker richiede sudo, anche docker-compose lo richiederà
+    if [ "$NEEDS_SUDO" = true ]; then
+        COMPOSE_CMD="sudo docker-compose"
+        DOCKER_CMD=""
+        echo -e "${YELLOW}Utilizzo sudo docker-compose (legacy)${NC}"
+    else
+        COMPOSE_CMD="docker-compose"
+        DOCKER_CMD=""
+        echo -e "${YELLOW}Utilizzo docker-compose (legacy)${NC}"
+    fi
+else
+    echo -e "${RED}ERRORE: Né 'docker compose' né 'docker-compose' sono disponibili.${NC}"
     exit 1
 fi
 
@@ -96,8 +130,11 @@ BACKUP_PATH="$PARENT_DIR/crazy-phoneTTS_backup_$TIMESTAMP"
 restore_backup() {
     echo -e "${YELLOW}  - Ripristino del backup...${NC}"
     cd "$PARENT_DIR"
-    rm -rf "$CURRENT_DIR"/*
-    rm -rf "$CURRENT_DIR"/.*  2>/dev/null || true
+    
+    # Rimuovi file e directory con attenzione per evitare errori "Device or resource busy"
+    find "$CURRENT_DIR" -mindepth 1 -maxdepth 1 ! -name 'uploads' ! -name 'output' -exec rm -rf {} + 2>/dev/null || true
+    
+    # Copia il backup
     cp -rf "$BACKUP_PATH"/. "$CURRENT_DIR"/
     cd "$CURRENT_DIR"
     echo -e "${GREEN}  - Backup ripristinato con successo${NC}"
@@ -128,50 +165,158 @@ echo -e "  ${GREEN}- Backup creato con successo (incluso .git)${NC}"
 echo ""
 echo -e "${CYAN}[2/5] Scaricamento ultima release da GitHub...${NC}"
 
-if [[ -n $(git status --porcelain) ]]; then
-    echo -e "  ${YELLOW}- Trovate modifiche locali, salvataggio in stash...${NC}"
-    git stash push -m "Auto-stash before update"
-    HAS_CHANGES=true
-else
-    HAS_CHANGES=false
-fi
+if [ "$GIT_AVAILABLE" = true ]; then
+    # Metodo 1: Usa Git (preferito)
+    echo -e "  ${GRAY}- Utilizzo Git per l'aggiornamento...${NC}"
+    
+    if [[ -n $(git status --porcelain) ]]; then
+        echo -e "  ${YELLOW}- Trovate modifiche locali, salvataggio in stash...${NC}"
+        git stash push -m "Auto-stash before update"
+        HAS_CHANGES=true
+    else
+        HAS_CHANGES=false
+    fi
 
-echo -e "  ${GRAY}- Download delle release...${NC}"
-if ! git fetch --tags --force; then
-    echo -e "${RED}ERRORE: Impossibile scaricare gli aggiornamenti.${NC}"
-    restore_backup
-    exit 1
-fi
-
-if [ "$LATEST_VERSION" != "unknown" ]; then
-    echo -e "  ${GRAY}- Checkout della versione $LATEST_VERSION...${NC}"
-    if ! git checkout "$LATEST_VERSION" -f; then
-        echo -e "${RED}ERRORE: Impossibile fare checkout della release.${NC}"
+    echo -e "  ${GRAY}- Download delle release...${NC}"
+    if ! git fetch --tags --force; then
+        echo -e "${RED}ERRORE: Impossibile scaricare gli aggiornamenti.${NC}"
         restore_backup
         exit 1
     fi
+
+    if [ "$LATEST_VERSION" != "unknown" ]; then
+        echo -e "  ${GRAY}- Checkout della versione $LATEST_VERSION...${NC}"
+        if ! git checkout "$LATEST_VERSION" -f; then
+            echo -e "${RED}ERRORE: Impossibile fare checkout della release.${NC}"
+            restore_backup
+            exit 1
+        fi
+    else
+        echo -e "  ${GRAY}- Eseguo git pull...${NC}"
+        if ! git pull; then
+            echo -e "${RED}ERRORE: Git pull fallito.${NC}"
+            restore_backup
+            exit 1
+        fi
+    fi
+
+    if [ "$HAS_CHANGES" = true ]; then
+        echo -e "  ${YELLOW}- Tentativo ripristino modifiche locali...${NC}"
+        if ! git stash pop 2>/dev/null; then
+            echo -e "  ${YELLOW}- ATTENZIONE: Alcune modifiche locali potrebbero essere in conflitto${NC}"
+            echo -e "  ${YELLOW}- Le modifiche sono salvate in: git stash list${NC}"
+        fi
+    fi
 else
-    echo -e "  ${GRAY}- Eseguo git pull...${NC}"
-    if ! git pull; then
-        echo -e "${RED}ERRORE: Git pull fallito.${NC}"
+    # Metodo 2: Download ZIP manuale (fallback)
+    echo -e "  ${GRAY}- Download ZIP dalla release GitHub...${NC}"
+    
+    ZIP_URL="https://github.com/ZELA2000/crazy-phoneTTS/archive/refs/heads/main.zip"
+    ZIP_PATH="/tmp/crazy-phoneTTS-update.zip"
+    EXTRACT_PATH="/tmp/crazy-phoneTTS-extract"
+    
+    # Download ZIP
+    echo -e "  ${GRAY}- Download in corso da GitHub...${NC}"
+    if command -v curl &> /dev/null; then
+        if ! curl -L "$ZIP_URL" -o "$ZIP_PATH"; then
+            echo -e "${RED}ERRORE: Download fallito.${NC}"
+            restore_backup
+            exit 1
+        fi
+    elif command -v wget &> /dev/null; then
+        if ! wget "$ZIP_URL" -O "$ZIP_PATH"; then
+            echo -e "${RED}ERRORE: Download fallito.${NC}"
+            restore_backup
+            exit 1
+        fi
+    else
+        echo -e "${RED}ERRORE: curl o wget non disponibili.${NC}"
         restore_backup
         exit 1
     fi
-fi
-
-if [ "$HAS_CHANGES" = true ]; then
-    echo -e "  ${YELLOW}- Tentativo ripristino modifiche locali...${NC}"
-    if ! git stash pop 2>/dev/null; then
-        echo -e "  ${YELLOW}- ATTENZIONE: Alcune modifiche locali potrebbero essere in conflitto${NC}"
-        echo -e "  ${YELLOW}- Le modifiche sono salvate in: git stash list${NC}"
+    
+    # Estrazione
+    echo -e "  ${GRAY}- Estrazione archivio...${NC}"
+    rm -rf "$EXTRACT_PATH" 2>/dev/null || true
+    mkdir -p "$EXTRACT_PATH"
+    
+    # Prova diversi metodi di estrazione
+    if command -v unzip &> /dev/null; then
+        if ! unzip -q "$ZIP_PATH" -d "$EXTRACT_PATH"; then
+            echo -e "${RED}ERRORE: Estrazione fallita.${NC}"
+            restore_backup
+            exit 1
+        fi
+    elif command -v 7z &> /dev/null; then
+        if ! 7z x "$ZIP_PATH" -o"$EXTRACT_PATH" -y > /dev/null; then
+            echo -e "${RED}ERRORE: Estrazione fallita.${NC}"
+            restore_backup
+            exit 1
+        fi
+    elif command -v python3 &> /dev/null; then
+        if ! python3 -m zipfile -e "$ZIP_PATH" "$EXTRACT_PATH"; then
+            echo -e "${RED}ERRORE: Estrazione fallita.${NC}"
+            restore_backup
+            exit 1
+        fi
+    elif command -v python &> /dev/null; then
+        if ! python -m zipfile -e "$ZIP_PATH" "$EXTRACT_PATH"; then
+            echo -e "${RED}ERRORE: Estrazione fallita.${NC}"
+            restore_backup
+            exit 1
+        fi
+    else
+        echo -e "${RED}ERRORE: Nessun tool di estrazione ZIP disponibile (unzip/7z/python).${NC}"
+        restore_backup
+        exit 1
     fi
+    
+    # Trova la cartella estratta
+    EXTRACTED_FOLDER=$(ls -1 "$EXTRACT_PATH" | head -n 1)
+    
+    # Copia solo i file necessari (escludi .git, .env, uploads, output)
+    echo -e "  ${GRAY}- Aggiornamento file di sistema...${NC}"
+    
+    cd "$EXTRACT_PATH/$EXTRACTED_FOLDER"
+    
+    # Metodo semplificato: usa rsync se disponibile, altrimenti cp con esclusioni
+    if command -v rsync &> /dev/null; then
+        rsync -av --exclude='.git' --exclude='uploads/' --exclude='output/' --exclude='backup*/' --exclude='node_modules/' --exclude='.env' --exclude='.env.local' ./ "$CURRENT_DIR/" > /dev/null
+    else
+        # Copia tutti i file escludendo le directory sensibili
+        for item in *; do
+            if [ "$item" != ".git" ] && [ "$item" != "uploads" ] && [ "$item" != "output" ] && [ "$item" != "node_modules" ]; then
+                cp -rf "$item" "$CURRENT_DIR/" 2>/dev/null || true
+            fi
+        done
+        
+        # Copia i file nascosti escludendo .git e .env
+        for item in .[^.]*; do
+            if [ -e "$item" ] && [ "$item" != ".git" ] && [ "$item" != ".env" ] && [ "$item" != ".env.local" ]; then
+                cp -rf "$item" "$CURRENT_DIR/" 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    cd "$CURRENT_DIR"
+    
+    # Pulizia
+    rm -f "$ZIP_PATH" 2>/dev/null || true
+    rm -rf "$EXTRACT_PATH" 2>/dev/null || true
 fi
 
 echo -e "  ${GREEN}- Aggiornamenti scaricati con successo${NC}"
 
 echo ""
 echo -e "${CYAN}[3/5] Arresto dei container...${NC}"
-if ! docker compose down; then
+# Aumenta il timeout per sistemi lenti (es. NAS)
+export COMPOSE_HTTP_TIMEOUT=300
+if [ -n "$DOCKER_CMD" ]; then
+    FULL_CMD="$DOCKER_CMD $COMPOSE_CMD down --timeout 120"
+else
+    FULL_CMD="$COMPOSE_CMD down --timeout 120"
+fi
+if ! $FULL_CMD; then
     echo -e "${RED}ERRORE: Impossibile fermare i container.${NC}"
     restore_backup
     exit 1
@@ -180,36 +325,54 @@ echo -e "  ${GREEN}- Container fermati con successo${NC}"
 
 echo ""
 echo -e "${CYAN}[4/5] Build delle nuove immagini...${NC}"
-if ! docker compose build; then
+if [ -n "$DOCKER_CMD" ]; then
+    FULL_CMD_BUILD="$DOCKER_CMD $COMPOSE_CMD build"
+    FULL_CMD_UP="$DOCKER_CMD $COMPOSE_CMD up -d"
+else
+    FULL_CMD_BUILD="$COMPOSE_CMD build"
+    FULL_CMD_UP="$COMPOSE_CMD up -d"
+fi
+if ! $FULL_CMD_BUILD; then
     echo -e "${RED}ERRORE: Build fallita.${NC}"
     restore_backup
     echo -e "  ${YELLOW}- Riavvio dei container con la versione precedente...${NC}"
-    docker compose up -d
+    $FULL_CMD_UP
     exit 1
 fi
 echo -e "  ${GREEN}- Build completata con successo${NC}"
 
 echo ""
 echo -e "${CYAN}[5/5] Avvio dei container...${NC}"
-if ! docker compose up -d; then
+if [ -n "$DOCKER_CMD" ]; then
+    FULL_CMD_UP="$DOCKER_CMD $COMPOSE_CMD up -d"
+    FULL_CMD_DOWN="$DOCKER_CMD $COMPOSE_CMD down"
+    FULL_CMD_PS="$DOCKER_CMD $COMPOSE_CMD ps -q"
+else
+    FULL_CMD_UP="$COMPOSE_CMD up -d"
+    FULL_CMD_DOWN="$COMPOSE_CMD down"
+    FULL_CMD_PS="$COMPOSE_CMD ps -q"
+fi
+
+if ! $FULL_CMD_UP; then
     echo -e "${RED}ERRORE: Impossibile avviare i container.${NC}"
-    docker compose down
+    $FULL_CMD_DOWN
     restore_backup
     echo -e "  ${YELLOW}- Riavvio dei container con la versione precedente...${NC}"
-    docker compose up -d
+    $FULL_CMD_UP
     exit 1
 fi
 
 echo -e "  ${GRAY}- Attendo avvio dei container...${NC}"
-sleep 5
+sleep 10
 
-RUNNING_CONTAINERS=$(docker compose ps --status running --quiet | wc -l)
+# Verifica che i container siano in esecuzione usando docker ps
+RUNNING_CONTAINERS=$($FULL_CMD_PS | wc -l)
 if [ "$RUNNING_CONTAINERS" -lt 2 ]; then
     echo -e "${RED}ERRORE: Non tutti i container sono in esecuzione.${NC}"
-    docker compose down
+    $FULL_CMD_DOWN
     restore_backup
     echo -e "  ${YELLOW}- Riavvio dei container con la versione precedente...${NC}"
-    docker compose up -d
+    $FULL_CMD_UP
     exit 1
 fi
 
@@ -227,4 +390,8 @@ echo ""
 echo -e "${GRAY}Backup salvato in: $BACKUP_PATH${NC}"
 echo -e "${GRAY}Puoi eliminarlo manualmente se tutto funziona correttamente.${NC}"
 echo ""
-echo -e "${GRAY}Controlla lo stato dei container con: docker compose ps${NC}"
+if [ -n "$DOCKER_CMD" ]; then
+    echo -e "${GRAY}Controlla lo stato dei container con: $DOCKER_CMD $COMPOSE_CMD ps${NC}"
+else
+    echo -e "${GRAY}Controlla lo stato dei container con: $COMPOSE_CMD ps${NC}"
+fi
