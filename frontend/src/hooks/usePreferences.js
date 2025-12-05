@@ -71,12 +71,17 @@ export const usePreferences = () => {
     
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
-      console.log('✅ Preferenze salvate:', preferences);
+      console.log('✅ [Preferences] Preferenze salvate:', {
+        servizio: preferences.ttsService,
+        voce: preferences.ttsVoice,
+        formato: preferences.outputFormat,
+        qualita: preferences.audioQuality
+      });
       
       setPreferencesSaved(true);
       setTimeout(() => setPreferencesSaved(false), 2000);
     } catch (err) {
-      console.error('❌ Errore salvataggio preferenze:', err);
+      console.error('❌ [Preferences] Errore salvataggio:', err.message || err);
     }
   };
 
@@ -85,7 +90,10 @@ export const usePreferences = () => {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const preferences = JSON.parse(saved);
-        console.log('📖 Caricamento preferenze salvate:', preferences);
+        console.log('📖 [Preferences] Preferenze caricate da localStorage:', {
+          servizio: preferences.ttsService,
+          voce: preferences.ttsVoice
+        });
         
         setMusicVolume(preferences.musicVolume ?? DEFAULT_PREFERENCES.musicVolume);
         setMusicBefore(preferences.musicBefore ?? DEFAULT_PREFERENCES.musicBefore);
@@ -105,7 +113,7 @@ export const usePreferences = () => {
       }
       return false;
     } catch (err) {
-      console.error('❌ Errore caricamento preferenze:', err);
+      console.error('❌ [Preferences] Errore caricamento preferenze:', err.message || err);
       return false;
     }
   };
@@ -128,10 +136,10 @@ export const usePreferences = () => {
       setTtsService(DEFAULT_PREFERENCES.ttsService);
       setTtsVoice(DEFAULT_PREFERENCES.ttsVoice);
       
-      console.log('🔄 Preferenze ripristinate ai default');
+      console.log('🔄 [Preferences] Preferenze ripristinate ai valori predefiniti');
       return true;
     } catch (err) {
-      console.error('❌ Errore reset preferenze:', err);
+      console.error('❌ [Preferences] Errore ripristino preferenze:', err.message || err);
       return false;
     }
   };

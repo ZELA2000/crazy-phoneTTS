@@ -181,28 +181,32 @@ async def startup_event():
     """Inizializzazione e validazione della configurazione Azure Speech Services"""
     global azure_speech_available
 
-    logger.info("🚀 crazy-phoneTTS Server Starting...")
-    logger.info(f"📍 Azure Speech Region: {AZURE_SPEECH_REGION}")
+    logger.info("🚀 ===========================================")
+    logger.info("🚀 crazy-phoneTTS Server - Avvio in corso...")
+    logger.info("🚀 ===========================================")
+    logger.info(f"📍 [Config] Azure Speech Region: {AZURE_SPEECH_REGION}")
 
     if AZURE_SPEECH_KEY:
-        logger.info("🔑 Azure Speech API Key: ✓ Configured")
+        logger.info("🔑 [Azure] API Key configurata correttamente")
 
         # Test della connessione Azure Speech
         try:
             await test_azure_speech_connection()
             azure_speech_available = True
-            logger.info("🎤 Azure Speech Services: ✓ Connection verified")
+            logger.info("✅ [Azure] Connessione verificata con successo")
         except Exception as e:
             azure_speech_available = False
-            logger.error(f"❌ Azure Speech Services: Connection failed - {e}")
+            logger.error(f"❌ [Azure] Connessione fallita: {e}")
             logger.warning(
-                "⚠️  Azure Speech non disponibile, usa Edge TTS (gratuito)")
+                "⚠️ [Azure] Azure Speech non disponibile. Utilizzare Edge TTS (gratuito)")
     else:
         azure_speech_available = False
         logger.warning(
-            "⚠️  Azure Speech API Key non configurata - usa Edge TTS (gratuito)")
+            "⚠️ [Azure] API Key non configurata. Utilizzare Edge TTS o Google TTS")
 
-    logger.info("✅ TTS server ready for commercial use!")
+    logger.info("✅ ===========================================")
+    logger.info("✅ TTS Server pronto per l'uso!")
+    logger.info("✅ ===========================================")
 
 
 async def test_azure_speech_connection():
@@ -216,7 +220,7 @@ async def test_azure_speech_connection():
     if not azure_speech_service:
         raise ValueError("Azure Speech Service non configurato")
 
-    logger.info("Verifica connessione Azure Speech Services...")
+    logger.info("🔍 [Azure] Verifica connessione in corso...")
 
     success = await azure_speech_service.test_connection()
     if not success:
@@ -237,7 +241,7 @@ async def generate_azure_speech(text: str, voice: str, output_path: str, ssml_op
         bool: True se successo, False altrimenti
     """
     if not azure_speech_service:
-        logger.error("Azure Speech Service non configurato")
+        logger.error("❌ [Azure] Servizio non configurato correttamente")
         return False
 
     # Converti dict opzioni in SSMLParameters se fornite
@@ -296,7 +300,7 @@ async def get_text_history(limit: int = 10):
             "total": len(history)
         }
     except Exception as e:
-        logger.error(f"Errore recupero cronologia: {e}")
+        logger.error(f"❌ [History] Errore recupero cronologia: {e}")
         raise HTTPException(
             status_code=500, detail="Errore recupero cronologia")
 
@@ -381,7 +385,7 @@ async def test_voice(
                 status_code=500, detail="Errore nella generazione audio di test")
 
     except Exception as e:
-        logger.error(f"Error testing voice {voice_id}: {e}")
+        logger.error(f"❌ [Voice Test] Errore test voce {voice_id}: {e}")
         raise HTTPException(
             status_code=500, detail=f"Errore nel test della voce: {str(e)}")
 
@@ -523,7 +527,7 @@ async def generate_audio(
             # Converti in WAV se necessario (pydub supporta tutti i formati)
             try:
                 if original_ext.lower() != '.wav':
-                    logger.info(f"🔄 Conversione {original_ext} → WAV")
+                    logger.info(f"🔄 [Audio] Conversione formato: {original_ext} → WAV")
                     audio = AudioSegment.from_file(temp_music_path)
                     audio.export(music_path, format="wav")
                     os.remove(temp_music_path)  # Rimuovi file temporaneo
@@ -531,7 +535,7 @@ async def generate_audio(
                     # È già WAV, rinomina
                     os.rename(temp_music_path, music_path)
             except Exception as e:
-                logger.error(f"❌ Errore conversione audio: {e}")
+                logger.error(f"❌ [Audio] Errore conversione formato: {e}")
                 if os.path.exists(temp_music_path):
                     os.remove(temp_music_path)
                 raise HTTPException(
@@ -546,7 +550,7 @@ async def generate_audio(
 
         # Genera TTS usando il servizio selezionato
         logger.info(
-            f"🎤 Generating TTS for text: {text[:50]}... using {tts_service}")
+            f"🎤 [TTS] Generazione audio | Servizio: {tts_service.upper()} | Voce: {voice_name} | Testo: '{text[:50]}...'")
 
         if tts_service == "edge":
             # Usa Edge TTS (gratuito)
@@ -595,7 +599,7 @@ async def generate_audio(
                 success = True
                 
             except Exception as e:
-                logger.error(f"Errore Google TTS: {e}")
+                logger.error(f"❌ [Google TTS] Errore sintesi: {e}")
                 success = False
         else:
             # Usa Azure Speech Services (richiede API key)
@@ -640,9 +644,9 @@ async def generate_audio(
             }
             await manager.broadcast(history_update)
 
-            logger.info(f"✅ Testo salvato nella cronologia (ID: {history_id})")
+            logger.info(f"✅ [History] Testo salvato (ID: {history_id})")
         except Exception as e:
-            logger.warning(f"⚠️ Errore salvataggio cronologia: {e}")
+            logger.warning(f"⚠️ [History] Errore salvataggio: {e}")
             # Non interrompere la generazione audio per errori cronologia
 
         # Carica audio voce e applica ottimizzazioni per suono più naturale
@@ -722,7 +726,7 @@ async def generate_audio(
             # Non eliminare le canzoni della libreria, solo i file temporanei
             os.remove(music_path)
 
-        logger.info(f"Audio generated successfully: {final_path}")
+        logger.info(f"✅ [Audio] Generazione completata: {os.path.basename(final_path)}")
 
         # Pulisci il nome personalizzato per la sicurezza e genera data
         clean_name = "".join(
@@ -739,7 +743,7 @@ async def generate_audio(
         )
 
     except Exception as e:
-        logger.error(f"Error generating audio: {e}")
+        logger.error(f"❌ [Audio] Errore durante la generazione: {e}")
         # Cleanup in case of error
         for path in [tts_path, final_path]:
             if 'path' in locals() and os.path.exists(path):
@@ -786,7 +790,7 @@ async def upload_music_to_library(
             content_type=music_file.content_type
         )
 
-        logger.info(f"Canzone caricata: {name} ({metadata['id']})")
+        logger.info(f"🎵 [Music Library] Brano caricato: '{name}' (ID: {metadata['id']})")
 
         return {
             "message": f"Canzone '{name}' aggiunta alla libreria con successo",

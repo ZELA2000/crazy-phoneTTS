@@ -23,7 +23,7 @@ class EdgeTTSService:
         """Inizializza il servizio Edge TTS"""
         self.available_voices = None
         self._voices_cache_initialized = False
-        logger.info("✅ Edge TTS Service inizializzato")
+        logger.info("✅ [Edge TTS] Servizio inizializzato con successo")
 
     async def _initialize_voices(self):
         """Carica le voci italiane disponibili dall'API Edge TTS"""
@@ -31,7 +31,7 @@ class EdgeTTSService:
             return
 
         try:
-            logger.info("📥 Caricamento voci italiane da Edge TTS API...")
+            logger.info("📥 [Edge TTS] Caricamento voci italiane da API Edge TTS...")
             all_voices = await edge_tts.list_voices()
 
             # Filtra solo voci italiane
@@ -55,7 +55,7 @@ class EdgeTTSService:
                 f"✅ Caricate {len(self.available_voices)} voci italiane da Edge TTS")
 
         except Exception as e:
-            logger.error(f"❌ Errore caricamento voci Edge TTS: {e}")
+            logger.error(f"❌ [Edge TTS] Errore caricamento voci: {e}")
             # Fallback a voci base
             self.available_voices = {
                 "it-IT-ElsaNeural": "Elsa (Female)",
@@ -122,7 +122,7 @@ class EdgeTTSService:
                 f"✅ MP3 temporaneo creato: {temp_mp3} ({os.path.getsize(temp_mp3)} bytes)")
 
             # Converti MP3 in WAV usando pydub
-            logger.info(f"🔄 Conversione MP3 → WAV: {temp_mp3} → {output_path}")
+            logger.info(f"🔄 [Edge TTS] Conversione formato: MP3 → WAV")
             audio = AudioSegment.from_mp3(temp_mp3)
             audio.export(output_path, format="wav")
 
@@ -136,14 +136,14 @@ class EdgeTTSService:
             # Rimuovi file temporaneo
             if os.path.exists(temp_mp3):
                 os.remove(temp_mp3)
-                logger.info(f"🗑️ File temporaneo rimosso: {temp_mp3}")
+                logger.info(f"🗑️ [Edge TTS] File temporaneo rimosso: {os.path.basename(temp_mp3)}")
 
             logger.info(
                 f"✅ Audio generato e convertito con successo: {output_path}")
             return True
 
         except Exception as error:
-            logger.error(f"❌ Errore generazione Edge TTS: {error}")
+            logger.error(f"❌ [Edge TTS] Errore durante la generazione: {error}")
             # Cleanup in caso di errore
             temp_mp3 = output_path.replace('.wav', '_temp.mp3')
             if os.path.exists(temp_mp3):

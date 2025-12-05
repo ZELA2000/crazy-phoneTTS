@@ -24,6 +24,6 @@ export const API_URL = getApiUrl();
 
 // Log per debugging
 if (process.env.NODE_ENV === 'development') {
-  console.log('🌐 API URL rilevato automaticamente:', API_URL);
-  console.log('🖥️ Host corrente:', window.location.hostname);
+  console.log('🌐 [API Config] URL backend rilevato:', API_URL);
+  console.log('🖥️ [API Config] Host corrente:', window.location.hostname);
 }

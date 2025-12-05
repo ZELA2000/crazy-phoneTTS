@@ -29,7 +29,7 @@ const TTSGenerator = ({ preferences, audioUrl, setAudioUrl }) => {
       const formData = new FormData();
       formData.append('text', text);
       formData.append('tts_service', preferences.ttsService);
-      formData.append('edge_voice', preferences.ttsVoice);
+      formData.append('voice_name', preferences.ttsVoice);
       formData.append('language', 'it');
 
       // Parametri musicali
@@ -63,7 +63,11 @@ const TTSGenerator = ({ preferences, audioUrl, setAudioUrl }) => {
       setSuccess(`Audio generato con successo${preferences.selectedMusic ? ' con musica!' : '!'} (${preferences.outputFormat.toUpperCase()}, ${preferences.audioQuality.toUpperCase()})`);
       
     } catch (err) {
-      console.error('Errore generazione:', err);
+      console.error('❌ [Audio Generation] Errore generazione audio:', {
+        servizio: preferences.ttsService,
+        voce: preferences.ttsVoice,
+        errore: err.response?.data || err.message || err
+      });
       setError('Errore durante la generazione dell\'audio');
     } finally {
       setIsLoading(false);

@@ -36,9 +36,9 @@ export const useTextHistory = () => {
     try {
       const response = await axios.get(`${API_URL}/api/history`);
       setTextHistory(response.data.data || []);
-      console.log('Cronologia caricata:', response.data.data);
+      console.log('📜 [History] Cronologia caricata:', response.data.data.length, 'elementi');
     } catch (err) {
-      console.error('Errore caricamento cronologia:', err);
+      console.error('❌ [History] Errore caricamento cronologia:', err.message || err);
     }
   };
 
