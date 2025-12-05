@@ -96,8 +96,8 @@ class GoogleTTSService:
             logger.error(f"❌ [Google TTS] Errore caricamento voci: {e}")
             # Fallback: voci base se l'API fallisce
             return {
-                "it-IT-Neural2-A": "Google Neural2-A (Femminile)",
-                "it-IT-Neural2-C": "Google Neural2-C (Maschile)",
+                "it-IT-Neural2-A": "Google Neural2 - A (Femminile)",
+                "it-IT-Neural2-C": "Google Neural2 - C (Maschile)",
             }
 
     async def synthesize_text(self, text: str, voice_name: str = "it-IT-Neural2-A", speed: float = 1.0) -> Tuple[bytes, str]:
