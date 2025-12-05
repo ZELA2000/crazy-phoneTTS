@@ -19,27 +19,30 @@ export const useWebSocket = (url, onMessage) => {
 
   const connect = () => {
     try {
-      console.log('Connessione WebSocket a:', url);
+      console.log('🔌 [WebSocket] Inizializzazione connessione a:', url);
       
       wsRef.current = new WebSocket(url);
       
       wsRef.current.onopen = () => {
-        console.log('✅ WebSocket connesso');
+        console.log('✅ [WebSocket] Connessione stabilita con successo');
         setIsConnected(true);
       };
       
       wsRef.current.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log('📨 Messaggio WebSocket ricevuto:', message);
+          console.log('📨 [WebSocket] Messaggio ricevuto:', {
+            tipo: message.type || 'unknown',
+            dati: message
+          });
           onMessage(message);
         } catch (err) {
-          console.error('Errore parsing messaggio WebSocket:', err);
+          console.error('❌ [WebSocket] Errore parsing messaggio:', err.message, '| Raw:', event.data);
         }
       };
       
       wsRef.current.onclose = () => {
-        console.log('❌ WebSocket disconnesso');
+        console.log('🔌 [WebSocket] Connessione chiusa');
         setIsConnected(false);
         
         // Riconnetti dopo 3 secondi
@@ -49,11 +52,11 @@ export const useWebSocket = (url, onMessage) => {
       };
       
       wsRef.current.onerror = (error) => {
-        console.error('❌ Errore WebSocket:', error);
+        console.error('❌ [WebSocket] Errore di connessione:', error.message || error);
         setIsConnected(false);
       };
     } catch (err) {
-      console.error('Errore setup WebSocket:', err);
+      console.error('❌ [WebSocket] Errore inizializzazione:', err.message || err);
     }
   };
 
@@ -70,7 +73,7 @@ export const useWebSocket = (url, onMessage) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(data));
     } else {
-      console.warn('WebSocket non connesso, impossibile inviare messaggio');
+      console.warn('⚠️ [WebSocket] Impossibile inviare messaggio: connessione non stabilita');
     }
   };
 

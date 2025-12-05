@@ -28,9 +28,13 @@ const TTSServiceSelector = ({ selectedService, selectedVoice, onServiceChange, o
         onVoiceChange(defaultVoice);
       }
       
-      console.log('Servizi TTS caricati:', response.data);
+      console.log('✅ [TTS Services] Servizi caricati con successo:', {
+        disponibili: Object.keys(response.data.services).length,
+        default: response.data.default_service,
+        dettagli: response.data.services
+      });
     } catch (err) {
-      console.error('Errore caricamento servizi TTS:', err);
+      console.error('❌ [TTS Services] Errore caricamento servizi:', err.message || err);
     } finally {
       setLoading(false);
     }
@@ -83,6 +87,7 @@ const TTSServiceSelector = ({ selectedService, selectedVoice, onServiceChange, o
             {currentService.description}
             {selectedService === 'edge' && currentService.available && ' 🆓'}
             {selectedService === 'azure' && currentService.available && ' ⭐ Premium'}
+            {selectedService === 'google' && currentService.available && ' 🌐'}
           </small>
         )}
       </div>
@@ -149,6 +154,36 @@ const TTSServiceSelector = ({ selectedService, selectedVoice, onServiceChange, o
           <strong>⚠️ API Key Non Configurata</strong>
           <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
             Per usare Azure Speech Services, configura AZURE_SPEECH_KEY nel file .env
+          </p>
+        </div>
+      )}
+      
+      {selectedService === 'google' && currentService?.available && (
+        <div className="info-box" style={{ 
+          marginTop: '16px', 
+          padding: '12px', 
+          backgroundColor: '#fce4ec', 
+          borderRadius: '8px',
+          border: '1px solid #e91e63'
+        }}>
+          <strong>🌐 Google Cloud TTS</strong>
+          <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
+            Voci Neural2 e WaveNet di alta qualità con supporto multilingue
+          </p>
+        </div>
+      )}
+      
+      {selectedService === 'google' && !currentService?.available && (
+        <div className="info-box" style={{ 
+          marginTop: '16px', 
+          padding: '12px', 
+          backgroundColor: '#fff3e0', 
+          borderRadius: '8px',
+          border: '1px solid #ff9800'
+        }}>
+          <strong>⚠️ Credenziali Non Configurate</strong>
+          <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
+            Per usare Google Cloud TTS, configura GOOGLE_APPLICATION_CREDENTIALS nel file .env
           </p>
         </div>
       )}

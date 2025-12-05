@@ -18,9 +18,9 @@ export const useMusicLibrary = (selectedMusic, setSelectedMusic) => {
     try {
       const response = await axios.get(`${API_URL}/music-library/list`);
       setMusicLibrary(response.data.songs || []);
-      console.log('Libreria musicale caricata:', response.data.songs);
+      console.log('🎵 [Music Library] Libreria caricata:', response.data.songs.length, 'brani disponibili');
     } catch (err) {
-      console.error('Errore nel caricamento della libreria:', err);
+      console.error('❌ [Music Library] Errore caricamento libreria:', err.message || err);
     }
   };
 
@@ -52,7 +52,12 @@ export const useMusicLibrary = (selectedMusic, setSelectedMusic) => {
       await loadMusicLibrary();
       return { success: true, message: 'Musica caricata con successo!' };
     } catch (err) {
-      console.error('Errore upload musica:', err);
+      console.error('❌ [Music Library] Errore upload brano:', {
+        file: file?.name,
+        size: file?.size,
+        tipo: file?.type,
+        errore: err.response?.data?.detail || err.message || err
+      });
       return { 
         success: false, 
         error: err.response?.data?.detail || 'Errore durante il caricamento della musica' 
@@ -77,7 +82,7 @@ export const useMusicLibrary = (selectedMusic, setSelectedMusic) => {
       
       return { success: true, message: 'Musica eliminata con successo!' };
     } catch (err) {
-      console.error('Errore eliminazione:', err);
+      console.error('❌ [Music Library] Errore eliminazione brano:', songId, '|', err.message || err);
       return { success: false, error: 'Errore durante l\'eliminazione della musica' };
     }
   };

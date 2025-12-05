@@ -35,16 +35,16 @@ export const useUpdateSystem = () => {
       const progress = progressResponse.data;
       
       if (progress.status === 'running') {
-        console.log('🔄 Rilevato aggiornamento in corso, riprendo monitoring...');
+        console.log('🔄 [Update] Aggiornamento in corso rilevato, ripresa monitoring...');
         setIsUpdating(true);
         setUpdateProgress(progress);
         startProgressPolling();
       } else if (progress.status === 'completed') {
-        console.log('🎉 Rilevato aggiornamento completato, pulisco stato...');
+        console.log('🎉 [Update] Aggiornamento completato con successo, pulizia stato in corso...');
         await axios.post(`${API_URL}/update/clear`).catch(() => {});
       }
     } catch (err) {
-      console.log('ℹ️ Nessun aggiornamento in corso o backend non raggiungibile');
+      console.log('ℹ️ [Update] Nessun aggiornamento in corso');
     }
     
     // Controlla nuovi aggiornamenti disponibili
@@ -60,12 +60,12 @@ export const useUpdateSystem = () => {
         setUpdateAvailable(true);
         setUpdateInfo(data);
         setShowUpdateDialog(true);
-        console.log('🔄 Aggiornamento disponibile:', data.latest_version);
+        console.log('🆕 [Update] Nuova versione disponibile:', data.latest_version, '(corrente:', data.current_version + ')');
       } else {
-        console.log('✅ Sistema aggiornato alla versione:', data.current_version);
+        console.log('✅ [Update] Sistema aggiornato - versione corrente:', data.current_version);
       }
     } catch (error) {
-      console.error('❌ Errore controllo aggiornamenti:', error);
+      console.error('❌ [Update] Errore verifica aggiornamenti:', error.message || error);
     }
   };
 
@@ -75,13 +75,13 @@ export const useUpdateSystem = () => {
       updateWsRef.current = new WebSocket(wsUrl);
       
       updateWsRef.current.onopen = () => {
-        console.log('✅ WebSocket aggiornamenti connesso');
+        console.log('✅ [Update WS] WebSocket aggiornamenti connesso');
       };
       
       updateWsRef.current.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log('📊 Progress WebSocket:', message);
+          console.log('📊 [Update WS] Progress ricevuto:', message.phase, '-', message.progress + '%');
           
           setUpdateProgress(message);
           
@@ -94,19 +94,19 @@ export const useUpdateSystem = () => {
             }, 2000);
           }
         } catch (err) {
-          console.error('❌ Errore parsing messaggio WebSocket:', err);
+          console.error('❌ [Update WS] Errore parsing messaggio:', err.message);
         }
       };
 
       updateWsRef.current.onclose = () => {
-        console.log('🔌 WebSocket aggiornamenti disconnesso');
+        console.log('🔌 [Update WS] WebSocket disconnesso');
       };
 
       updateWsRef.current.onerror = (error) => {
-        console.log('⚠️ Errore WebSocket:', error);
+        console.log('⚠️ [Update WS] Errore connessione:', error.message || error);
       };
     } catch (error) {
-      console.error('❌ Errore setup WebSocket aggiornamenti:', error);
+      console.error('❌ [Update WS] Errore inizializzazione WebSocket:', error.message || error);
     }
   };
 
@@ -119,11 +119,11 @@ export const useUpdateSystem = () => {
       try {
         setupUpdateWebSocket();
       } catch (wsErr) {
-        console.log('⚠️ WebSocket non disponibile, uso solo polling');
+        console.log('⚠️ [Update] WebSocket non disponibile, utilizzo polling HTTP');
       }
       
       const response = await axios.post(`${API_URL}/deploy/trigger`);
-      console.log('✅ Deploy triggered:', response.data);
+      console.log('✅ [Update] Deploy avviato con successo:', response.data);
       
       if (response.data.status === 'manual_required') {
         setUpdateProgress({
@@ -146,7 +146,7 @@ export const useUpdateSystem = () => {
       
     } catch (error) {
       setIsUpdating(false);
-      console.error('❌ Errore avvio aggiornamento:', error);
+      console.error('❌ [Update] Errore avvio aggiornamento:', error.response?.data || error.message || error);
     }
   };
 
@@ -160,7 +160,7 @@ export const useUpdateSystem = () => {
       const response = await axios.get(`${API_URL}/update/progress`, { timeout: 3000 });
       const progress = response.data;
       
-      console.log('📊 Progress persistente:', progress);
+      console.log('📊 [Update] Progress persistente caricato:', progress.phase, '-', progress.progress + '%');
       setUpdateProgress(progress);
       
       if (progress.status === 'completed') {
@@ -179,7 +179,7 @@ export const useUpdateSystem = () => {
       
       return true;
     } catch (error) {
-      console.log('🔍 Backend non raggiungibile, continuo polling...');
+      console.log('🔍 [Update] Backend non raggiungibile, continuo polling...');
       return true;
     }
   };
@@ -201,13 +201,13 @@ export const useUpdateSystem = () => {
         try {
           await axios.get(`${API_URL}/health`, { timeout: 2000 });
           backendOnline = true;
-          console.log('🔄 Backend rilevato online, tentativo riconnessione WebSocket...');
+          console.log('🔄 [Update] Backend online rilevato, tentativo riconnessione WebSocket...');
           
           wsRetryTimeout = setTimeout(() => {
             try {
               setupUpdateWebSocket();
             } catch (err) {
-              console.log('⚠️ Riconnessione WebSocket fallita');
+              console.log('⚠️ [Update] Riconnessione WebSocket fallita, continuo con polling');
             }
           }, 2000);
           
