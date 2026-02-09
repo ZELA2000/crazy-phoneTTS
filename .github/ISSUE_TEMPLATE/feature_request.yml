@@ -1,0 +1,125 @@
+name: ✨ Feature Request
+description: Proponi una nuova funzionalità o miglioramento
+title: "[FEATURE] "
+labels: ["enhancement", "needs-review"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Grazie per il tuo interesse nel migliorare il progetto! 
+        Questo template ti aiuterà a proporre nuove funzionalità in modo chiaro.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema da risolvere
+      description: Qual è il problema o la necessità che questa funzionalità risolverebbe?
+      placeholder: |
+        Esempio: È frustrante quando devo [descrizione problema]...
+        Attualmente non è possibile fare [azione]...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Soluzione proposta
+      description: Descrivi la funzionalità che vorresti vedere implementata
+      placeholder: |
+        Sarebbe utile avere...
+        Vorrei poter...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Componente da modificare/estendere
+      description: Quale parte del sistema dovrebbe essere modificata?
+      options:
+        - Frontend (Interfaccia React)
+        - Backend (API FastAPI)
+        - TTS Service (Nuovi provider)
+        - Audio Processing
+        - Music Library
+        - Docker/Deployment
+        - Update System
+        - Documentazione
+        - Altro
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priorità
+      description: Quanto è importante questa funzionalità per te?
+      options:
+        - Nice to have (sarebbe utile)
+        - Important (importante per il mio caso d'uso)
+        - Critical (bloccante per l'utilizzo)
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Soluzioni alternative considerate
+      description: Hai considerato altre soluzioni o workaround?
+      placeholder: |
+        Ho provato a...
+        Attualmente uso... ma non è ideale perché...
+    validations:
+      required: false
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Caso d'uso
+      description: Descrivi uno scenario concreto in cui questa funzionalità sarebbe utile
+      placeholder: |
+        Quando lavoro con centralini telefonici, ho bisogno di...
+        Per il mio sistema di marketing telefonico, vorrei...
+    validations:
+      required: false
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockup o esempi
+      description: Hai screenshot, mockup o link a implementazioni simili?
+      placeholder: |
+        Puoi allegare immagini o link...
+    validations:
+      required: false
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Note sull'implementazione
+      description: Hai idee su come implementare questa funzionalità? (opzionale)
+      placeholder: |
+        Potrebbe essere implementato usando...
+        Probabilmente richiede modifiche a...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contributo
+      options:
+        - label: Sarei disposto/a a contribuire all'implementazione di questa funzionalità
+          required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: Ho cercato tra le issue esistenti per verificare che non sia già stata proposta
+          required: true
+        - label: Ho verificato che questa funzionalità non sia già disponibile nell'ultima versione
+          required: true

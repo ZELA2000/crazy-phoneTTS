@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentazione
+    url: https://github.com/ZELA2000/crazy-phoneTTS/blob/main/README.md
+    about: Consulta la documentazione completa del progetto
+  - name: 💬 Discussioni
+    url: https://github.com/ZELA2000/crazy-phoneTTS/discussions
+    about: Per domande generali, idee o discussioni usa GitHub Discussions

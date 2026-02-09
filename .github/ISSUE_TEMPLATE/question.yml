@@ -1,0 +1,93 @@
+name: ❓ Domanda / Supporto
+description: Fai una domanda o richiedi supporto
+title: "[QUESTION] "
+labels: ["question"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hai una domanda sul progetto? Usa questo template!
+        
+        **Nota**: Per problemi tecnici usa il template "Bug Report", 
+        per proporre nuove funzionalità usa "Feature Request".
+
+  - type: textarea
+    id: question
+    attributes:
+      label: La tua domanda
+      description: Descrivi chiaramente cosa vorresti sapere
+      placeholder: |
+        Come posso...
+        È possibile...
+        Qual è il modo migliore per...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Categoria
+      description: Qual è l'argomento della tua domanda?
+      options:
+        - Installazione e Setup
+        - Configurazione
+        - Utilizzo Frontend
+        - API e Backend
+        - Servizi TTS (Azure/Edge/Google)
+        - Audio Processing
+        - Music Library
+        - Docker e Deployment
+        - Update System
+        - Best Practices
+        - Altro
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Contesto
+      description: Fornisci dettagli sul tuo caso d'uso o scenario
+      placeholder: |
+        Sto cercando di...
+        Il mio obiettivo è...
+        Sto lavorando su...
+    validations:
+      required: false
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: Cosa hai già provato
+      description: Hai già tentato qualche soluzione? Cosa hai trovato nella documentazione?
+      placeholder: |
+        Ho letto la documentazione su...
+        Ho provato a...
+        Ho cercato in...
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Ambiente (opzionale)
+      description: Se rilevante, fornisci informazioni sul tuo ambiente
+      value: |
+        - OS: 
+        - Versione Docker: 
+        - Versione Applicazione: 
+      render: markdown
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: Ho cercato nelle issue esistenti per vedere se qualcuno ha già fatto questa domanda
+          required: true
+        - label: Ho consultato il README e la documentazione disponibile
+          required: true
